@@ -1,0 +1,81 @@
+# job-search settings (hand-edited). Paths are relative to the data home unless absolute or ~.
+schema_version = 1
+
+[search]
+query = "AI engineer OR machine learning engineer OR AI architect"
+default_location = "Reston, VA"
+radius_miles = 25
+remote_preference = "prefer"      # require | prefer | allow | exclude
+min_results = 10
+max_results = 12
+max_age_days = 30
+boards_file = "config/job-board-links.md"
+strategy_order = ["webfetch", "firecrawl", "playwright"]
+
+[scoring]
+resume_path = "resume"            # directory holding resume.pdf|md|txt (or a file path)
+resume_url = ""                   # e.g. https://example.com/resume ; used if no local file
+rubric_version = 1
+min_fit_to_show = 40
+resume_seniority = "senior"       # intern|junior|mid|senior|staff|principal|director|vp
+home_metro = ["reston-va", "herndon-va", "mclean-va", "tysons-va", "arlington-va", "washington-dc"]
+ok_metros = ["remote-us", "baltimore-md", "raleigh-nc"]
+target_domains = ["ai", "ml", "platform", "cloud", "devops"]
+target_base = 0                   # 0 = no compensation preference
+holds_clearance = false
+work_authorized_us = true
+needs_sponsorship = false
+[scoring.weights]                 # must sum to 100
+must_have = 35
+skills = 20
+seniority = 12
+location = 12
+domain = 8
+recency = 5
+comp = 8
+
+[memory]
+cooldown_days = 14
+extended_cooldown_days = 45
+expire_after_days = 45
+selection_expiry_days = 7
+git_autocommit = true
+
+[apply]
+auto_submit = false               # NEVER submits unless true
+submit_threshold = 80
+max_submits_per_run = 5
+max_applications_per_run = 5
+browser_profile_path = "config/browser-profile"
+browser_mode = "auto"             # auto | headed | headless
+browser_channel = "auto"          # auto | chrome | chromium | msedge
+browser_no_sandbox = false
+cdp_endpoint = ""                 # e.g. http://localhost:9223 to attach to a running Chrome
+tailor_by_default = true
+profile = "config/profile.md"
+cover_letter_style = "config/cover-letter-style.md"
+
+[output]
+report_dir = "reports"
+applications_dir = "applications"
+pdf_engine = "auto"               # auto | chrome | reportlab
+chrome_path = "auto"
+
+[notion]
+enabled = true
+database_id = ""                  # bootstrapped on first run (stored in settings.local.json)
+data_source_id = ""
+parent_page_id = ""
+database_title = "Job Search"
+mirror = "shown"                  # all | shown | selected
+
+[runtime]
+model = "opus"
+fallback_model = "sonnet"
+max_turns = 120
+max_budget_usd = 4.0
+
+[platform_overrides.macos.apply]
+browser_channel = "chrome"
+[platform_overrides.linux.apply]
+browser_channel = "chromium"
