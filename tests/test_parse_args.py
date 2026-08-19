@@ -33,3 +33,17 @@ def test_apply_url_and_headless_scan():
     assert r["command"] == "apply" and r["url"] == "https://jobs.lever.co/acme/123"
     r = pa.parse("scan --headless --max 12 --run 9f1c2d3e")
     assert r["flags"]["headless"] is True and r["flags"]["max"] == "12" and r["flags"]["run"] == "9f1c2d3e"
+
+def test_value_flags_without_values_stay_none_and_do_not_eat_flags():
+    r = pa.parse("scan --query --headless")
+    assert r["query"] is None and r["flags"]["headless"] is True
+    r = pa.parse("no 5 --reason")
+    assert r["reason"] is None
+    r = pa.parse("AI jobs --query --headless")
+    assert r["flags"]["headless"] is True and r["query"] == "AI jobs"
+
+def test_cli_main_preserves_quoted_args(capsys):
+    pa.main(["no", "5", "wrong level"])
+    import json
+    out = json.loads(capsys.readouterr().out)
+    assert out["reason"] == "wrong level" and out["numbers"] == ["5"]
