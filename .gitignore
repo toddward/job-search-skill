@@ -1,0 +1,15 @@
+# personal data & secrets — this repo is local-only, never push
+resume/
+config/profile.md
+config/settings.local.yaml
+config/browser-profile/
+config/mcp.headless.json
+applications/
+memory/
+reports/
+.firecrawl/
+.playwright-mcp/
+__pycache__/
+*.pyc
+.pytest_cache/
+.DS_Store
