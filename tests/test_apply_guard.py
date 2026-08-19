@@ -67,3 +67,73 @@ def test_cli_decide_bad_state_json_exits_3(home, tmp_path, capsys):
     assert exc.value.code == 3
     out = json.loads(capsys.readouterr().out.strip().splitlines()[-1])
     assert out["allow"] is False and out["reason_codes"] == ["bad_state"]
+
+# --- Fix Round 2 regression tests -------------------------------------------------
+
+def test_stringly_fit_score_is_coerced_and_allows():
+    # Item 1: "85" (string) must coerce cleanly via float(), not traceback at the
+    # threshold comparison.
+    s = good(); s["fit_score"] = "85"
+    d = ag.decide(s, CFG, {"submits_this_run": 0})
+    assert d["allow"] is True
+
+def test_non_numeric_fit_score_denies_bad_state_types():
+    # Item 1: an uncoercible fit_score must fail closed, never traceback.
+    s = good(); s["fit_score"] = "eighty"
+    d = ag.decide(s, CFG, {"submits_this_run": 0})
+    assert d["allow"] is False and "bad_state_types" in d["reason_codes"]
+
+def test_bool_fit_score_denies_bad_state_types():
+    # bonus: bool is an int subclass — True/False must never silently coerce to 1/0.
+    s = good(); s["fit_score"] = True
+    d = ag.decide(s, CFG, {"submits_this_run": 0})
+    assert d["allow"] is False and "bad_state_types" in d["reason_codes"]
+
+def test_cli_decide_non_numeric_fit_score_exits_3_with_json(home, tmp_path, capsys):
+    # Item 1: a well-formed state.json with a bad fit_score must exit 3 with valid JSON
+    # on stdout, never a traceback.
+    s = good(); s["fit_score"] = "eighty"
+    state_file = tmp_path / "state.json"
+    state_file.write_text(json.dumps(s))
+    with pytest.raises(SystemExit) as exc:
+        ag.main(["--home", str(home), "decide", "--state-json", str(state_file), "--run", "runFit"])
+    assert exc.value.code == 3
+    out = json.loads(capsys.readouterr().out.strip().splitlines()[-1])
+    assert out["allow"] is False
+
+def test_cli_decide_never_tracebacks_on_internal_error(home, tmp_path, capsys, monkeypatch):
+    # Item 1: the CLI wraps the whole decide() call, so even an unexpected internal
+    # failure fails closed as bad_state instead of raising.
+    state_file = tmp_path / "state.json"
+    state_file.write_text(json.dumps(good()))
+    def boom(*a, **kw):
+        raise RuntimeError("simulated failure")
+    monkeypatch.setattr(ag, "decide", boom)
+    with pytest.raises(SystemExit) as exc:
+        ag.main(["--home", str(home), "decide", "--state-json", str(state_file), "--run", "runBoom"])
+    assert exc.value.code == 3
+    out = json.loads(capsys.readouterr().out.strip().splitlines()[-1])
+    assert out["allow"] is False and out["reason_codes"] == ["bad_state"]
+
+def test_released_slots_are_not_burned_forever(home):
+    # Item 3: reserve 3 at cap 3, release all 3, then a 4th reservation must succeed
+    # because the cap counts active (unreleased) reservations, not lifetime history.
+    assert ag.reserve_slot(home, "runR", "fp1", 3)
+    assert ag.reserve_slot(home, "runR", "fp2", 3)
+    assert ag.reserve_slot(home, "runR", "fp3", 3)
+    assert ag.submits_this_run(home, "runR") == 3
+    ag.release_slot(home, "runR", "fp1")
+    ag.release_slot(home, "runR", "fp2")
+    ag.release_slot(home, "runR", "fp3")
+    assert ag.submits_this_run(home, "runR") == 0
+    assert ag.reserve_slot(home, "runR", "fp4", 3) is True
+    assert ag.submits_this_run(home, "runR") == 1
+
+def test_reserve_slot_atomic_under_concurrency_still_exact(home):
+    # Item 3 regression guard: the active-row filtering change must not break the
+    # original concurrency guarantee when nothing has ever been released.
+    from concurrent.futures import ThreadPoolExecutor
+    with ThreadPoolExecutor(max_workers=8) as ex:
+        results = list(ex.map(lambda i: ag.reserve_slot(home, "runC2", f"fp{i}", 3), range(8)))
+    assert sum(1 for r in results if r) == 3
+    assert ag.submits_this_run(home, "runC2") == 3

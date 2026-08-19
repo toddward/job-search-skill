@@ -96,24 +96,37 @@ python3 ${CLAUDE_SKILL_DIR}/scripts/apply_guard.py decide \
 ```
 
 Exit `0` = `allow: true` — click only on that result. Exit `3` = deny, for **any**
-failed gate or for a malformed/unreadable `state.json` (denied as `bad_state`, never a
-traceback). Any exit other than `0` means: set state `review` or `needs_manual_apply`
-and stop; never bypass via Enter, JS, or another selector.
+failed gate, any malformed/uncoercible field (e.g. a stringly `fit_score`), or a
+malformed/unreadable `state.json` or unexpected internal failure (denied as
+`bad_state`, never a traceback — the CLI wraps the whole decision in one handler so no
+input can ever crash the guard). Any exit other than `0` means: set state `review` or
+`needs_manual_apply` and stop; never bypass via Enter, JS, or another selector.
 
-Reserve the submit slot *before* clicking, record the outcome *after*:
+**`decide` always runs before `reserve`.** Its cap gate (`submits_this_run`) only
+reflects reservations *already completed* earlier in this run — it never counts the
+in-flight one — so `decide: allow` is a pre-flight check, not the atomic claim.
+`reserve` is the atomic operation that actually claims the slot for the current
+application, and it must independently succeed (it re-verifies the cap itself) before
+the control is clicked; under concurrent runs a `decide: allow` does not guarantee a
+following `reserve` will also succeed.
 
 ```sh
 python3 ${CLAUDE_SKILL_DIR}/scripts/apply_guard.py reserve --run <run_id> --fp <fp>
-# only if reserve printed {"reserved": true} AND decide printed allow:true, click the control
+# {"reserved": true, "nonce": "<nonce>"} — capture the nonce for a precise release later
+# only if reserve printed reserved:true AND decide printed allow:true, click the control
 python3 ${CLAUDE_SKILL_DIR}/scripts/apply_guard.py record --run <run_id> --fp <fp> --submitted
 ```
 
-If `decide` denies *after* a successful `reserve`, or the post-click confirmation never
-appears, release the slot instead of recording a submit — the per-run cap counts
-**successful reservations net of releases**, not raw click attempts:
+If `reserve` returns `reserved: false`, or `decide` denies *after* a successful
+`reserve`, or the post-click confirmation never appears, release the slot instead of
+recording a submit — the per-run cap counts **active reservations net of releases**,
+not raw click attempts or lifetime history, so a released slot becomes available again
+for a later application in the same run:
 
 ```sh
-python3 ${CLAUDE_SKILL_DIR}/scripts/apply_guard.py release --run <run_id> --fp <fp>
+python3 ${CLAUDE_SKILL_DIR}/scripts/apply_guard.py release --run <run_id> --fp <fp> --nonce <nonce>
+# --nonce may be omitted: it falls back to releasing the newest unreleased reservation
+# for that --fp, for a caller that did not retain the nonce from `reserve`
 ```
 
 This is not a prose reminder — the fill worker must not have `browser_run_code_unsafe`

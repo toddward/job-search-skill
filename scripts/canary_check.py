@@ -40,22 +40,37 @@ def _tokens(s: str) -> set[str]:
 
 def _is_header_line(line: str) -> bool:
     """True for a standalone section-header line (e.g. 'QUALIFICATIONS', 'ABOUT THE ROLE')
-    with no lowercase letters at all — never scanned for canary-style ALL-CAPS tokens."""
+    with no lowercase letters at all."""
     s = line.strip().lstrip("#").strip()
     return bool(s) and not re.search(r"[a-z]", s)
 
 def _caps_in_jd(jd_text: str) -> set[str]:
-    """ALL-CAPS 6+ char tokens embedded in ordinary JD prose — never from a standalone
-    header line, and never an ordinary vocabulary word that merely happens to sit under
-    a caps heading."""
+    """ALL-CAPS 6+ char tokens that look like a canary/injection artifact rather than an
+    ordinary word that merely happens to sit in a shouty section heading.
+
+    - A token embedded in ordinary (non-header) prose is always collected (minus
+      COMMON_VOCAB) — this is the common canary-in-a-sentence case.
+    - A token found ONLY on caps-only header lines and nowhere else in the JD is still
+      collected: a canary word hidden entirely inside a shouty line (its own line, or a
+      header like "REQUIRED SKILLS FROBSCOTTLE") must not evade detection just because
+      that line has no lowercase letters.
+    - A token on a header line is skipped only when it is COMMON_VOCAB, or it *also*
+      appears elsewhere in the JD on an ordinary body line (the heading is just reusing
+      normal vocabulary, e.g. a "QUALIFICATIONS" heading plus a "the qualifications for
+      this role..." body sentence).
+    """
+    lines = (jd_text or "").splitlines()
+    body_tokens = _tokens("\n".join(ln for ln in lines if not _is_header_line(ln)))
     out = set()
-    for line in (jd_text or "").splitlines():
-        if _is_header_line(line):
-            continue
+    for line in lines:
+        header = _is_header_line(line)
         for t in re.findall(r"\b[A-Z][A-Z\-]{5,}\b", line):
             tl = t.lower()
-            if tl not in COMMON_VOCAB:
-                out.add(tl)
+            if tl in COMMON_VOCAB:
+                continue
+            if header and tl in body_tokens:
+                continue
+            out.add(tl)
     return out
 
 def check(generated: str, jd_text: str, master_md: str, profile_md: str = "") -> dict:
