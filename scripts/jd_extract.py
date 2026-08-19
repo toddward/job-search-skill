@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Extract structured requirements from a job description (JSON-LD, Greenhouse/Ashby/Lever JSON, or HTML headings)."""
 from __future__ import annotations
+from datetime import datetime, timezone
 import hashlib, html, json, re, sys, unicodedata
 
 REQ_HEAD = re.compile(r"(minimum|basic|required|must[- ]have|what you.{0,4}ll need|qualifications|requirements|you have|about you|"
@@ -15,10 +16,25 @@ CLEAR_OK = re.compile(r"(eligible to obtain|ability to obtain|able to obtain|cle
 CITIZ = re.compile(r"\b(U\.?S\.? citizen(ship)?|must be a citizen|green card|permanent resident)\b", re.I)
 NOSPONSOR = re.compile(r"(no sponsorship|not able to sponsor|unable to sponsor|without sponsorship|cannot sponsor)", re.I)
 YEARS = re.compile(r"(\d{1,2})\s*\+?\s*(?:-\s*\d{1,2}\s*)?years?", re.I)
-MONEY = re.compile(r"\$\s?(\d{2,3})(?:,(\d{3}))?(?:\s?[kK])?")
+MONEY = re.compile(r"\$\s?(\d{1,3}(?:,\d{3})+|\d{4,6}|\d{2,3})\s?([kK])?")
 REMOTE = re.compile(r"\b(remote|work from home|wfh)\b", re.I); HYBRID = re.compile(r"\bhybrid\b", re.I)
-INJECT = re.compile(r"(ignore (all )?(previous|prior|above) instructions|[Yy]ou are an (?:ai|AI)|(?:ai|AI) agents?|language model|include the (word|phrase|token)|"
-                    r"\b[A-Z]{8,}\b(?![a-z]))")
+CANARY_CAPS = re.compile(r"\b[A-Z]{8,}\b")
+INJECT_PHRASES = re.compile(r"(ignore (all )?(previous|prior|above) instructions|you are an ai\b|ai agents?\b|language model|include the (word|phrase|token)|"
+                            r"disregard (the )?(above|previous)|as an ai\b|if you are an? (ai|llm|bot))", re.I)
+
+class _Either:
+    """Wrapper to search with either INJECT_PHRASES or CANARY_CAPS."""
+    def __init__(self, pattern1, pattern2):
+        self.pattern1 = pattern1
+        self.pattern2 = pattern2
+    def search(self, s):
+        return self.pattern1.search(s) or self.pattern2.search(s)
+    def finditer(self, s):
+        """Chain both iterators."""
+        yield from self.pattern1.finditer(s)
+        yield from self.pattern2.finditer(s)
+
+INJECT = _Either(INJECT_PHRASES, CANARY_CAPS)
 DOMAINS = {"ai": r"\b(ai|artificial intelligence|llm|generative|genai|machine learning|ml)\b", "platform": r"\bplatform\b",
            "cloud": r"\b(aws|azure|gcp|cloud)\b", "devops": r"\b(devops|sre|site reliability|kubernetes)\b",
            "data": r"\b(data engineering|analytics|etl|warehouse)\b", "security": r"\b(security|appsec|zero trust)\b",
@@ -73,17 +89,34 @@ def sectioned_bullets(text: str):
             continue
         if ln.startswith(("- ", "* ", "•")) and cur:
             item = ln.lstrip("-*• ").strip()
-            if 1 <= len(item) <= 400:
+            if 2 <= len(item) <= 400:
                 (must if cur == "must" else nice).append(item)
     return must, nice
+
+def find_injections(text: str) -> list[str]:
+    """Extract injection suspects (phrases and canary tokens) from text."""
+    matches = sorted({m.group(0) for m in INJECT.finditer(text)})
+    return matches[:10]
 
 def facts(text: str) -> dict:
     yrs = [int(m.group(1)) for m in YEARS.finditer(text)]
     money = []
     for m in MONEY.finditer(text):
-        val = int(m.group(1)) * (1000 if not m.group(2) else 1) + (int(m.group(2)) if m.group(2) else 0)
-        if m.group(2):
-            val = int(m.group(1) + m.group(2))
+        g1, g2 = m.group(1), m.group(2)
+        # Skip if immediately followed by /hour, /hr, per hour, /h, hourly within 10 chars
+        match_end = m.end()
+        context_after = text[match_end:match_end+10].lower()
+        if re.match(r"(?:\s*/?(?:hour|hr|h)|per hour|hourly)", context_after):
+            continue
+        # Parse value: commas, k suffix, or >=4 digits
+        if "," in g1:
+            val = int(g1.replace(",", ""))
+        elif g2:  # k or K suffix
+            val = int(g1) * 1000
+        elif len(g1) >= 4:  # 4+ digits
+            val = int(g1)
+        else:  # 2-3 digits without k suffix or commas → skip
+            continue
         money.append(val)
     money = [v for v in money if 20000 <= v <= 2000000]
     return {"clearance_required": bool(CLEAR.search(text)) and not CLEAR_OK.search(text),
@@ -117,7 +150,7 @@ def _base(title="", company="", location="", desc_html="", url="", layer="headin
            "posted_at": kw.get("posted_at"), "closes_at": kw.get("closes_at"), "apply_url": kw.get("apply_url") or url,
            "source_layer": layer, "low_confidence": not must, "domain_tags": domain_tags(title + " " + text),
            "content_hash": hashlib.sha256(text.strip().encode()).hexdigest()[:16],
-           "injection_suspects": sorted({m.group(0) for m in INJECT.finditer(strip_html(desc_html))})[:10]}
+           "injection_suspects": find_injections(strip_html(desc_html))}
     for k in ("comp_min", "comp_max"):
         if kw.get(k) is not None:
             out[k] = kw[k]
@@ -146,8 +179,7 @@ def extract(raw: str, url: str = "", source_hint: str = "") -> dict:
         ts = data.get("createdAt")
         posted = None
         if isinstance(ts, (int, float)):
-            import datetime as _dt
-            posted = _dt.datetime.utcfromtimestamp(ts / 1000).strftime("%Y-%m-%d")
+            posted = datetime.fromtimestamp(ts / 1000, tz=timezone.utc).strftime("%Y-%m-%d")
         return _base(data.get("text", ""), data.get("company", ""), cats.get("location", ""), desc, url, "lever", posted_at=posted,
                      apply_url=data.get("applyUrl") or data.get("hostedUrl"), remote_hint=data.get("workplaceType", ""))
     posts = jsonld_postings(raw)
