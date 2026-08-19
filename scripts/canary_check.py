@@ -30,16 +30,42 @@ standards startup statement status storage strategy strong structure success suc
 talent teams technical technologies technology testing through throughout together tools training transform travel understand
 understanding united university update using values variety various vision website welcome willing within without working workplace
 written years yourself
+qualifications observability resilience stakeholder stakeholders mentorship onboarding responsibilities requirements benefits
+compensation overview summary preferred department location employment engineering excellence operational strategic technical
+proficiency familiarity accountable collaboration innovative initiative organized detailed motivated proactive
 """.split())
 
 def _tokens(s: str) -> set[str]:
     return {t.lower() for t in re.findall(r"[A-Za-z][A-Za-z\-]{5,}", s or "")}
 
+def _is_header_line(line: str) -> bool:
+    """True for a standalone section-header line (e.g. 'QUALIFICATIONS', 'ABOUT THE ROLE')
+    with no lowercase letters at all — never scanned for canary-style ALL-CAPS tokens."""
+    s = line.strip().lstrip("#").strip()
+    return bool(s) and not re.search(r"[a-z]", s)
+
+def _caps_in_jd(jd_text: str) -> set[str]:
+    """ALL-CAPS 6+ char tokens embedded in ordinary JD prose — never from a standalone
+    header line, and never an ordinary vocabulary word that merely happens to sit under
+    a caps heading."""
+    out = set()
+    for line in (jd_text or "").splitlines():
+        if _is_header_line(line):
+            continue
+        for t in re.findall(r"\b[A-Z][A-Z\-]{5,}\b", line):
+            tl = t.lower()
+            if tl not in COMMON_VOCAB:
+                out.add(tl)
+    return out
+
 def check(generated: str, jd_text: str, master_md: str, profile_md: str = "") -> dict:
     gen, jd = _tokens(generated), _tokens(jd_text)
     known = _tokens(master_md) | _tokens(profile_md) | COMMON_VOCAB
-    caps_in_jd = {t.lower() for t in re.findall(r"\b[A-Z][A-Z\-]{5,}\b", jd_text or "")}
-    inj_sentences = [s for s in re.split(r"(?<=[.!?])\s+", jd_text or "") if jd_extract.INJECT.search(s)]
+    caps_in_jd = _caps_in_jd(jd_text)
+    # Sentence-level injection flagging uses instruction phrases only — an ALL-CAPS run
+    # (canary word or shouty header) must never by itself mark a whole sentence/bullet as
+    # an injected instruction; that's what caps_in_jd/suspects already handles per-token.
+    inj_sentences = [s for s in re.split(r"(?<=[.!?])\s+|\n+", jd_text or "") if s.strip() and jd_extract.INJECT_PHRASES.search(s)]
     inj_tokens = set().union(*[_tokens(s) for s in inj_sentences]) if inj_sentences else set()
     suspects = sorted(t for t in (gen & jd) - known if t in caps_in_jd or t in inj_tokens)
     injected = [s.strip() for s in inj_sentences][:5]

@@ -75,13 +75,46 @@ npx -y @playwright/mcp@latest \
 8. On an intermediate **Next/Continue/Save** control: validate first, click only its
    current ref, wait for the heading/progress indicator to change, snapshot again.
    Never press Enter to advance.
+9. **Before building `state.json`**, run the canary/injection check on every
+   AI-generated text block (cover letter, drafted answers):
+   ```sh
+   python3 ${CLAUDE_SKILL_DIR}/scripts/canary_check.py \
+     --generated cover-letter.md --jd job.md \
+     --master resume/master.md --profile config/profile.md
+   ```
+   Exit `0` → set `canary_ok: true` in state; exit `3` (suspects or injected phrases
+   found) → `canary_ok: false`, which the guard below denies unconditionally.
 
 ## HARD RULE — the submit boundary
 
 Before clicking any control whose accessible name matches the adapter's `Final
-controls`, run `scripts/apply_guard.py decide` with the current state JSON; click
-only on `allow: true`; otherwise set state `review` or `needs_manual_apply` and stop;
-never bypass via Enter, JS, or another selector.
+controls`, run:
+
+```sh
+python3 ${CLAUDE_SKILL_DIR}/scripts/apply_guard.py decide \
+  --state-json state.json --run <run_id> [--i-mean-it]
+```
+
+Exit `0` = `allow: true` — click only on that result. Exit `3` = deny, for **any**
+failed gate or for a malformed/unreadable `state.json` (denied as `bad_state`, never a
+traceback). Any exit other than `0` means: set state `review` or `needs_manual_apply`
+and stop; never bypass via Enter, JS, or another selector.
+
+Reserve the submit slot *before* clicking, record the outcome *after*:
+
+```sh
+python3 ${CLAUDE_SKILL_DIR}/scripts/apply_guard.py reserve --run <run_id> --fp <fp>
+# only if reserve printed {"reserved": true} AND decide printed allow:true, click the control
+python3 ${CLAUDE_SKILL_DIR}/scripts/apply_guard.py record --run <run_id> --fp <fp> --submitted
+```
+
+If `decide` denies *after* a successful `reserve`, or the post-click confirmation never
+appears, release the slot instead of recording a submit — the per-run cap counts
+**successful reservations net of releases**, not raw click attempts:
+
+```sh
+python3 ${CLAUDE_SKILL_DIR}/scripts/apply_guard.py release --run <run_id> --fp <fp>
+```
 
 This is not a prose reminder — the fill worker must not have `browser_run_code_unsafe`
 or arbitrary-JS access during an application session, `browser_type` must always be
