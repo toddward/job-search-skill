@@ -1,15 +1,20 @@
-# personal data & secrets — this repo is local-only, never push
+# --- Guard: personal data must never enter this public repo ---
+# (the data home lives outside the repo by default; these rules protect users who point it here)
 resume/
 config/profile.md
 config/settings.local.yaml
 config/browser-profile/
 config/mcp.headless.json
+config/headless.settings.json
+config/cover-letter-style.md
 applications/
 memory/
 reports/
+# tooling
 .firecrawl/
 .playwright-mcp/
 __pycache__/
 *.pyc
 .pytest_cache/
 .DS_Store
+.venv/

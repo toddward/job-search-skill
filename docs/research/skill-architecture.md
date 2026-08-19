@@ -545,7 +545,7 @@ Two platform caveats:
 
 ### Scheduling: launchd (macOS, recommended)
 
-`~/Library/LaunchAgents/info.wardzinski.job-search.plist`:
+`~/Library/LaunchAgents/com.example.job-search.plist`:
 
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
@@ -553,7 +553,7 @@ Two platform caveats:
 <plist version="1.0">
 <dict>
   <key>Label</key>
-  <string>info.wardzinski.job-search</string>
+  <string>com.example.job-search</string>
   <key>ProgramArguments</key>
   <array>
     <string>/Users/toddwardzinski/.claude/skills/job-search/scripts/run_headless.py</string>
@@ -591,10 +591,10 @@ Two platform caveats:
 ```
 
 ```sh
-launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/info.wardzinski.job-search.plist
-launchctl enable gui/$(id -u)/info.wardzinski.job-search
-launchctl kickstart -k gui/$(id -u)/info.wardzinski.job-search   # run it now
-launchctl print gui/$(id -u)/info.wardzinski.job-search | head -30
+launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.example.job-search.plist
+launchctl enable gui/$(id -u)/com.example.job-search
+launchctl kickstart -k gui/$(id -u)/com.example.job-search   # run it now
+launchctl print gui/$(id -u)/com.example.job-search | head -30
 ```
 
 `ProcessType Background` keeps the agent out of the foreground QoS band. A `gui/$UID` LaunchAgent has a GUI session when the user is logged in — which a headed Chrome needs; a `system/` LaunchDaemon does not.
@@ -824,7 +824,7 @@ One object per line, validated against this (draft 2020-12) by `jobs_db.py --val
 ```json
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://wardzinski.info/schemas/job-search/job-1.json",
+  "$id": "https://example.com/schemas/job-search/job-1.json",
   "title": "job-search job record",
   "type": "object",
   "additionalProperties": false,
@@ -1220,7 +1220,7 @@ search:
 
 scoring:
   resume_path: resume/resume.pdf     # or resume.md / resume.txt
-  resume_url: "https://wardzinski.info"   # used when no local file is present
+  resume_url: "https://example.com"   # used when no local file is present
   resume_extractor: auto             # auto | pdftotext | pypdf | firecrawl | url
   rubric: references/scoring-rubric.md
   min_fit_to_show: 55
@@ -1336,12 +1336,12 @@ Free-form markdown with H2 sections; the skill reads it whole when filling forms
 # Applicant profile
 
 ## Identity
-Name: Todd Wardzinski
-Email: wardzinski.todd@gmail.com
+Name: Jane Example
+Email: you@example.com
 Phone: <your number>
 Location: Reston, VA 20190, USA
 LinkedIn: https://www.linkedin.com/in/toddwardzinski
-Portfolio: https://wardzinski.info
+Portfolio: https://example.com
 
 ## Work authorization
 - Authorized to work in the US: Yes

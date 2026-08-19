@@ -78,10 +78,10 @@ this document class. Conclusion: `pdftotext` first, Firecrawl for formats popple
 Do **not** pass `redactPII` when parsing a resume — it strips exactly the contact block you
 need.
 
-### 4. Hosted HTML resume (wardzinski.info-style)
+### 4. Hosted HTML resume (example.com-style)
 
 ```bash
-firecrawl scrape "https://wardzinski.info/resume" -f markdown --only-main-content -o resume/.raw/hosted.md
+firecrawl scrape "https://example.com/resume" -f markdown --only-main-content -o resume/.raw/hosted.md
 ```
 
 `--only-main-content` drops nav/footer chrome. If Firecrawl is unavailable, `WebFetch` with a
@@ -116,12 +116,12 @@ One file, one authority. Everything downstream (tailoring, truth gate, scoring) 
 
 ```markdown
 ---
-name: Todd Wardzinski
-email: wardzinski.todd@gmail.com
+name: Jane Example
+email: you@example.com
 phone: "+1-555-555-5555"
 location: Reston, VA
 links:
-  site: https://wardzinski.info
+  site: https://example.com
   linkedin: https://www.linkedin.com/in/example
   github: https://github.com/example
 seniority: staff          # intern|junior|mid|senior|staff|principal|director  → scorer input
@@ -137,8 +137,8 @@ target_domains: [AI/ML, Platform, Data Infrastructure]
 schema_version: 1
 ---
 
-# Todd Wardzinski
-Reston, VA | wardzinski.todd@gmail.com | (555) 555-5555 | wardzinski.info
+# Jane Example
+Reston, VA | you@example.com | (555) 555-5555 | example.com
 
 ## Summary
 <2-3 sentences. No adjectives that cannot be evidenced below.>
@@ -740,7 +740,7 @@ which declares exactly: `default-background-color`, `dump-dom`, **`print-to-pdf`
    **[tested]**. Do **not** use `--no-margins`; it zeroes the print margin and your `@page`
    margin becomes the only thing between text and the paper edge — a 0-margin resume looks broken
    and can be clipped on print.
-9. **pandoc `--standalone` duplicates your name.** With `--metadata title="Todd Wardzinski -
+9. **pandoc `--standalone` duplicates your name.** With `--metadata title="Jane Example -
    Resume"`, pandoc emits a visible `<h1 class="title">` *and* your `# Name` heading, so the PDF
    opens with the name twice **[tested]**. Generate a fragment and wrap it yourself (§D).
 10. **Size ceiling is 2.5 MB, not 100 MB.** Greenhouse accepts 100 MB but *parses* nothing over
@@ -756,7 +756,7 @@ to 1 page, 139 extractable words, 56.5 KB, perfect reading order.
 ```html
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8">
-<title>Todd Wardzinski - Resume</title>
+<title>Jane Example - Resume</title>
 <style>
   @page { size: Letter; margin: 0.65in 0.7in; }
   html, body { margin:0; padding:0; }
@@ -783,9 +783,9 @@ to 1 page, 139 extractable words, 56.5 KB, perfect reading order.
   li::before { content: "\2022\00a0\00a0"; }              /* real glyph in the text stream */
   a  { color: #000; text-decoration: none; }
 </style></head><body>
-<h1>Todd Wardzinski</h1>
-<p class="contact">Reston, VA &#8226; wardzinski.todd@gmail.com &#8226; (555) 555-5555
-   &#8226; wardzinski.info &#8226; linkedin.com/in/example</p>
+<h1>Jane Example</h1>
+<p class="contact">Reston, VA &#8226; you@example.com &#8226; (555) 555-5555
+   &#8226; example.com &#8226; linkedin.com/in/example</p>
 
 <section><h2>Summary</h2>
 <p>Platform engineer with 12 years building Kubernetes-based data platforms for regulated environments.</p></section>
@@ -814,8 +814,8 @@ to 1 page, 139 extractable words, 56.5 KB, perfect reading order.
 Extraction from the generated PDF, verbatim **[tested]**:
 
 ```
-Todd Wardzinski
-Reston, VA • wardzinski.todd@gmail.com • (555) 555-5555 • wardzinski.info • linkedin.com/in/example
+Jane Example
+Reston, VA • you@example.com • (555) 555-5555 • example.com • linkedin.com/in/example
 SUMMARY
 Platform engineer with 12 years building Kubernetes-based data platforms for regulated environments.
 SKILLS
