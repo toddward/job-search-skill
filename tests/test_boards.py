@@ -27,6 +27,19 @@ def test_location_alias():
     assert boards.location_alias("Capital One", "Reston, VA") == "McLean, VA"
     assert boards.location_alias("Dice", "Reston, VA") == "Reston, VA"
 
+def test_parse_query_strips_radius_phrase():
+    q = boards.parse_query("senior ML engineer jobs near Arlington, VA within 50 miles", config.DEFAULTS["search"])
+    assert q["radius_miles"] == 50 and q["location"] == "Arlington, VA"
+    kws = [k.lower() for k in q["keywords"]]
+    assert "within" not in kws and "50" not in kws and "miles" not in kws
+
+def test_location_alias_word_boundary_and_non_dc_passthrough():
+    assert boards.location_alias("Capital One", "Savannah, GA") == "Savannah, GA"
+    assert boards.location_alias("Capital One", "Austin, TX") == "Austin, TX"
+    assert boards.location_alias("Capital One", "Reston, VA") == "McLean, VA"
+    assert boards.location_alias("Amazon AWS Herndon", "Arlington, Virginia") == "Herndon, VA"
+    assert boards.location_alias("Built In DC", "") == ""
+
 def test_default_asset_parses():
     import common
     rows = boards.parse_table((common.SKILL_DIR / "assets" / "job-board-links.default.md").read_text())

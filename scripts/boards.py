@@ -1,28 +1,34 @@
 #!/usr/bin/env python3
 """Parse config/job-board-links.md and render per-board search URLs for a free-text query."""
 from __future__ import annotations
-import json, re, sys
-from pathlib import Path
+import json, re
 from urllib.parse import quote
 import common
 
 STATE_NAMES = {"va": "Virginia", "md": "Maryland", "dc": "District of Columbia", "ca": "California", "ny": "New York",
                "tx": "Texas", "wa": "Washington", "ma": "Massachusetts", "nc": "North Carolina", "co": "Colorado",
                "il": "Illinois", "ga": "Georgia", "fl": "Florida", "pa": "Pennsylvania", "nj": "New Jersey"}
+# Word-boundary DC-metro match (not a bare substring) so e.g. "Savannah, GA" or "Austin, TX" never
+# false-positive on "va"/"md" appearing inside another word.
+DC_METRO_RE = re.compile(r"\b(va|dc|md|virginia|maryland|district of columbia)\b", re.I)
 ALIASES = [  # (board substring, location map)
-    ("capital one", lambda loc: "McLean, VA" if "va" in loc.lower() else loc),
-    ("amazon", lambda loc: "Herndon, VA" if "va" in loc.lower() else loc),
-    ("built in", lambda loc: "Washington, DC" if re.search(r"\b(va|dc|md)\b", loc.lower()) else loc),
-    ("anthropic", lambda loc: "Washington, DC" if re.search(r"\b(va|dc|md)\b", loc.lower()) else loc),
-    ("openai", lambda loc: "Washington, DC" if re.search(r"\b(va|dc|md)\b", loc.lower()) else loc),
-    ("wellfound", lambda loc: "Washington, DC" if re.search(r"\b(va|dc|md)\b", loc.lower()) else loc),
+    ("capital one", lambda loc: "McLean, VA" if DC_METRO_RE.search(loc) else loc),
+    ("amazon", lambda loc: "Herndon, VA" if DC_METRO_RE.search(loc) else loc),
+    ("built in", lambda loc: "Washington, DC" if DC_METRO_RE.search(loc) else loc),
+    ("anthropic", lambda loc: "Washington, DC" if DC_METRO_RE.search(loc) else loc),
+    ("openai", lambda loc: "Washington, DC" if DC_METRO_RE.search(loc) else loc),
+    ("wellfound", lambda loc: "Washington, DC" if DC_METRO_RE.search(loc) else loc),
     ("google careers", lambda loc: loc + ", USA" if loc and "usa" not in loc.lower() else loc),
     ("usajobs", lambda loc: _expand_state(loc)),
 ]
 STOP = {"i'm", "im", "i", "am", "searching", "looking", "for", "jobs", "job", "roles", "role", "positions", "position", "based", "in", "the",
-        "area", "near", "around", "a", "an", "of", "and", "or", "openings", "opportunities", "want", "find", "me", "please", "that", "are", "with"}
+        "area", "near", "around", "a", "an", "of", "and", "or", "openings", "opportunities", "want", "find", "me", "please", "that", "are",
+        "with", "within"}
 # Tech acronyms that must survive the two-letter-uppercase (state-abbreviation) filter below.
 ACRONYMS = {"ai", "ml", "llm", "nlp"}
+# "within 50 miles" / "50 mi" — matched and stripped from the free-text body before tokenizing
+# into keywords, so the radius phrase never leaks into the keyword list.
+RADIUS_RE = re.compile(r"(?:within\s+)?(\d{1,3})\s*(?:mi\b|miles?\b)", re.I)
 
 def _expand_state(loc: str) -> str:
     m = re.match(r"^(.*?),\s*([A-Za-z]{2})$", loc.strip())
@@ -65,12 +71,14 @@ def parse_query(text: str, cfg_search: dict) -> dict:
     if m:
         body = raw.replace(m.group(0), " ")
     body = re.sub(r"\b(remote|hybrid|onsite)\b", " ", body, flags=re.I)
+    radius_m = RADIUS_RE.search(raw)
+    radius = int(radius_m.group(1)) if radius_m else int(cfg_search.get("radius_miles", 25))
+    body = RADIUS_RE.sub(" ", body)
     words = [w.strip(",.;:!?()\"'") for w in body.split()]
     # Drop stopwords and bare two-letter uppercase tokens (state abbreviations like VA/DC),
     # but keep known tech acronyms (AI/ML/LLM/NLP) even though they are also all-caps.
     kws = [w for w in words if w and w.lower() not in STOP and (w.lower() in ACRONYMS or not re.fullmatch(r"[A-Z]{2}", w))]
     kws = [w.upper() if w.lower() in ACRONYMS else w for w in kws]
-    radius = int(re.search(r"(\d{1,3})\s*(?:mi|miles)", raw, re.I).group(1)) if re.search(r"(\d{1,3})\s*(?:mi|miles)", raw, re.I) else int(cfg_search.get("radius_miles", 25))
     return {"keywords": kws or [cfg_search.get("query") or "engineer"], "location": location, "radius_miles": radius, "remote": remote, "raw": raw}
 
 def render(rows: list[dict], query: dict, only_enabled: bool = True) -> list[dict]:
