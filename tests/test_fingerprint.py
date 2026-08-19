@@ -52,3 +52,13 @@ def test_location_key_is_stable_across_formats():
     assert fp.location_key("New York, NY") == fp.location_key("New York, New York") == "new-york-ny"
     assert fp.location_key("Washington, DC, USA") == fp.location_key("Washington, D.C.") == "washington-dc"
     assert fp.location_key("Austin, Texas") == "austin-tx" and fp.location_key("Phoenix, Arizona") == "phoenix-az"
+
+def test_location_key_drops_country_segments():
+    assert fp.location_key("Arlington, Virginia, United States") == fp.location_key("Arlington, VA") == "arlington-va"
+    assert fp.location_key("San Francisco, California, United States") == "san-francisco-ca"
+    assert fp.location_key("Denver, Colorado, USA") == "denver-co"
+
+def test_gh_jid_requires_exact_query_key():
+    assert fp.detect_source("https://careers.somecompany.com/job/123?utm_campaign=gh_jidxyz") == "other"
+    assert fp.detect_source("https://careers.somecompany.com/job/123?notgh_jid=1") == "other"
+    assert fp.detect_source("https://careers.somecompany.com/job/123?gh_jid=55") == "greenhouse"

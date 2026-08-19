@@ -3,7 +3,7 @@
 from __future__ import annotations
 import hashlib, json, re, unicodedata
 from difflib import SequenceMatcher
-from urllib.parse import urlsplit, urlunsplit, parse_qsl, urlencode
+from urllib.parse import urlsplit, urlunsplit, parse_qsl, urlencode, parse_qs
 
 LEGAL = re.compile(r"\b(inc|llc|l l c|ltd|limited|corp|corporation|co|company|pbc|gmbh|plc|sa|nv|ag|ab|oy|pty|the|group)\b")
 ALIASES = {"booz allen hamilton": "booz allen", "amazon web services": "amazon", "aws": "amazon",
@@ -65,31 +65,50 @@ def location_key(location: str, remote: str = "") -> str:
         rest = [p for p in loc.split() if p not in ("remote", "us", "usa", "united", "states", "only")]
         return "remote-us" if not rest else "remote-" + "-".join(rest)
 
-    # Handle comma-separated format: split on LAST comma
+    # Handle comma-separated format: split on ALL commas
     if "," in location:
-        parts = location.rsplit(",", 1)
-        city = _norm(parts[0]).replace(" ", "-")
-        region_str = _norm(parts[1])
-    else:
-        # No comma: check if last 1-3 words form a state name/abbr
-        words = loc.split()
-        region = None
-        city_words = words
-        for i in range(1, 4):
-            if i <= len(words):
-                candidate = " ".join(words[-i:])
-                if candidate in STATES or candidate.replace("-", " ") in STATES:
-                    region = candidate
-                    city_words = words[:-i]
-                    break
-        city = "-".join(city_words) if city_words else ""
-        region_str = region or ""
+        segments = [_norm(s) for s in location.split(",")]
 
-    # Strip trailing usa/us/united states from region
-    region_parts = region_str.split()
-    while region_parts and region_parts[-1] in ("usa", "us", "united", "states"):
-        region_parts.pop()
-    region_str = " ".join(region_parts)
+        # Drop trailing country tokens
+        country_tokens = {"united states", "united states of america", "usa", "us", "u s", "america"}
+        while segments and segments[-1] in country_tokens:
+            segments.pop()
+
+        # If only one segment remains, apply no-comma logic
+        if len(segments) == 1:
+            loc = segments[0]
+        else:
+            # Region = last remaining segment (mapped via STATES table)
+            region_str = segments[-1]
+            region_abbr = STATES.get(region_str, region_str.replace(" ", "-"))
+
+            # City = leading segments with spaces replaced by dashes, then joined
+            city_parts = [s.replace(" ", "-") for s in segments[:-1]]
+            city = "-".join(city_parts)
+
+            # Combine city and region
+            if city and region_abbr:
+                return f"{city}-{region_abbr}"
+            elif region_abbr:
+                return region_abbr
+            elif city:
+                return city
+            else:
+                return "unknown"
+
+    # No comma: check if last 1-3 words form a state name/abbr
+    words = loc.split()
+    region = None
+    city_words = words
+    for i in range(1, 4):
+        if i <= len(words):
+            candidate = " ".join(words[-i:])
+            if candidate in STATES or candidate.replace("-", " ") in STATES:
+                region = candidate
+                city_words = words[:-i]
+                break
+    city = "-".join(city_words) if city_words else ""
+    region_str = region or ""
 
     # Map region via STATES table
     if region_str:
@@ -141,7 +160,9 @@ def detect_source(url: str) -> str:
                 return name
 
     # Check gh_jid query parameter (Greenhouse board embedded on company domain)
-    if "gh_jid" in p.query:
+    # Use parse_qs for exact key matching (not substring)
+    query_params = parse_qs(p.query)
+    if "gh_jid" in query_params:
         return "greenhouse"
 
     return "other"
