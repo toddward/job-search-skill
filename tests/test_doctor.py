@@ -1,0 +1,29 @@
+import json, os, subprocess, sys, doctor, runtime_probe, common
+
+def test_probe_modes(monkeypatch):
+    monkeypatch.setenv("CLAUDE_CODE_ENTRYPOINT", "cli"); assert runtime_probe.probe()["mode"] == "interactive"
+    monkeypatch.setenv("CLAUDE_CODE_ENTRYPOINT", "sdk-cli"); assert runtime_probe.probe()["mode"] == "headless"
+    monkeypatch.delenv("CLAUDE_CODE_ENTRYPOINT"); assert runtime_probe.probe()["mode"] == "headless"
+    monkeypatch.setenv("JOBSEARCH_FORCE_MODE", "interactive"); assert runtime_probe.probe()["mode"] == "interactive"
+    out = subprocess.run([sys.executable, str(common.SKILL_DIR / "scripts" / "runtime_probe.py")], capture_output=True, text=True).stdout
+    assert out.startswith("mode=") and " os=" in out and "$" not in out
+
+def test_bootstrap_creates_config(home, monkeypatch):
+    monkeypatch.setattr(common, "POINTER", home / "pointer")
+    msgs = doctor.bootstrap(home)
+    for f in ["settings.toml", "profile.md", "cover-letter-style.md", "job-board-links.md", "headless.settings.json", "mcp.headless.json"]:
+        assert (home / "config" / f).exists(), f
+    assert (home / ".git").exists() and (home / ".gitignore").read_text().count("browser-profile")
+    hs = json.loads((home / "config" / "headless.settings.json").read_text())
+    assert str(home) in json.dumps(hs) and "{{" not in json.dumps(hs)
+    assert (home / "pointer").read_text().strip() == str(home)
+    (home / "config" / "settings.toml").write_text("# edited\n")
+    doctor.bootstrap(home); assert (home / "config" / "settings.toml").read_text() == "# edited\n"
+
+def test_check_reports_structure(home):
+    import config
+    doctor.bootstrap(home)
+    r = doctor.check(home, config.load(home), quick=True)
+    names = {c["name"] for c in r["checks"]}
+    assert {"python", "data_home", "resume", "settings", "boards", "pdf_browser", "pdftotext"} <= names
+    assert all({"name", "ok", "detail", "fix"} <= set(c) for c in r["checks"])

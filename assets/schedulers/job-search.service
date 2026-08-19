@@ -1,0 +1,13 @@
+[Unit]
+Description=job-search scan
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory={{HOME}}
+Environment=PATH={{HOME_DIR}}/.local/bin:/usr/local/bin:/usr/bin:/bin
+Environment=MCP_TIMEOUT=60000
+ExecStart={{SKILL}}/scripts/run_headless.py scan
+StandardInput=null
+TimeoutStartSec=45min

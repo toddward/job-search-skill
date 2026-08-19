@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Read", "Write", "Edit", "Glob", "Grep", "WebSearch", "WebFetch",
+      "Bash({{SKILL}}/scripts/*)", "Bash(python3 {{SKILL}}/scripts/*)", "Bash(python3 *)",
+      "Bash(mkdir *)", "Bash(cp *)", "Bash(mv *)", "Bash(ls *)", "Bash(cat *)", "Bash(firecrawl *)", "Bash(pdftotext *)",
+      "Bash(git -C {{HOME}}/memory *)",
+      "mcp__firecrawl__*", "mcp__playwright__*", "mcp__notion__*"
+    ],
+    "deny": ["Bash(rm -rf *)", "Bash(git push *)", "AskUserQuestion"]
+  },
+  "env": { "MCP_TIMEOUT": "60000", "BASH_DEFAULT_TIMEOUT_MS": "180000", "JOBSEARCH_HOME": "{{HOME}}" }
+}

@@ -1,0 +1,10 @@
+[Unit]
+Description=job-search weekday scan at 06:30
+
+[Timer]
+OnCalendar=Mon..Fri 06:30
+Persistent=true
+RandomizedDelaySec=300
+
+[Install]
+WantedBy=timers.target

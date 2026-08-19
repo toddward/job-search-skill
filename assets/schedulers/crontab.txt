@@ -1,0 +1,4 @@
+# job-search: weekday scan at 06:30 local. Edit PATH for your machine (claude/node/python3 must be reachable).
+SHELL=/bin/bash
+PATH={{HOME_DIR}}/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin
+30 6 * * 1-5 python3 {{SKILL}}/scripts/run_headless.py scan >> {{HOME}}/memory/logs/cron.log 2>&1 < /dev/null
