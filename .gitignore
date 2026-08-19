@@ -3,6 +3,7 @@
 resume/
 config/profile.md
 config/settings.local.yaml
+config/settings.local.json
 config/browser-profile/
 config/mcp.headless.json
 config/headless.settings.json

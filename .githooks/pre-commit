@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+# Block personal-data paths from ever being committed to the public skill repo.
+set -e
+blocked='^(resume/|config/profile\.md|config/settings\.local\.json|config/browser-profile/|config/mcp\.headless\.json|config/headless\.settings\.json|config/cover-letter-style\.md|applications/|memory/|reports/)'
+if git diff --cached --name-only | grep -E "$blocked" >/dev/null; then
+  echo "pre-commit: refusing to commit personal-data paths:" >&2
+  git diff --cached --name-only | grep -E "$blocked" >&2
+  exit 1
+fi
+if git diff --cached -U0 | grep -E '^\+.*[A-Za-z0-9._%+-]+@(gmail|yahoo|outlook|icloud)\.com' >/dev/null; then
+  echo "pre-commit: a personal email address is being added; use you@example.com in examples." >&2
+  exit 1
+fi
