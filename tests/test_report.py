@@ -44,3 +44,33 @@ def test_resolve_numbers(home):
     idx["generated_at"] = "2026-07-01T00:00:00Z"
     with pytest.raises(ValueError):
         report.resolve_numbers(["1"], idx, db, now="2026-08-19T00:00:00Z")
+
+def test_latest_report_ignores_stray_date_prefixed_files(home):
+    db = jobs_db.JobsDB(home / "memory" / "jobs.jsonl")
+    (home / "reports").mkdir(parents=True, exist_ok=True)
+    (home / "reports" / "2026-08-19-scratchpad-notes.md").write_text("not a report", encoding="utf-8")
+    report.write(home, "2026-08-19", run(), result(), db=db)
+    report.write(home, "2026-08-19", run("other-run"), result(), db=db)
+    p = report.latest_report(home, date="2026-08-19")
+    assert p.name == "2026-08-19.r2.md"
+
+def test_write_skips_slot_of_deleted_but_recorded_report(home):
+    db = jobs_db.JobsDB(home / "memory" / "jobs.jsonl")
+    report.write(home, "2026-08-19", run("run-1"), result(), db=db)
+    report.write(home, "2026-08-19", run("run-2"), result(), db=db)
+    p3 = report.write(home, "2026-08-19", run("run-3"), result(), db=db)
+    assert p3.name == "2026-08-19.r3.md"
+    p3.unlink()
+    p4 = report.write(home, "2026-08-19", run("run-4"), result(), db=db)
+    assert p4.name != "2026-08-19.r3.md"
+    got = report.latest_report(home, run_id="run-3")
+    assert got is None or report.load_index(got).get("run_id") == "run-3"
+
+def test_render_escapes_pipe_in_table_cells():
+    r = result()
+    r["ranked"][0]["title"] = "Engineer | Full Stack"
+    md = report.render(run(), r)
+    rows = [l for l in md.splitlines() if l.startswith("| 1 |")]
+    assert rows and "Engineer \\| Full Stack" in rows[0]
+    idx = report.load_index_text(md)
+    assert idx["items"][0]["title"] == "Engineer | Full Stack"

@@ -68,3 +68,18 @@ def test_repeat_dismissal_message_has_undo():
     rules, _, _ = di.learn_dismissal(job("Account Executive"), rules, "x", "2026-08-02T00:00:00Z", fams)
     rules, msg, _ = di.learn_dismissal(job("Field Engineer"), rules, "x", "2026-08-03T00:00:00Z", fams)
     assert "unhide dis-001" in msg and "HARD" in msg
+
+def test_comp_dismissal_is_hard_with_threshold():
+    fams = di.load_families()
+    j = job("Machine Learning Engineer", comp_max=170000)
+    rules, msg, r = di.learn_dismissal(j, [], "pays too low", "2026-08-05T00:00:00Z", fams, scope="comp")
+    assert r["scope"] == "comp" and r["min_base"] == 170000 and r["strength"] == "hard"
+    assert r["id"] in msg and "unhide" in msg and "170,000" in msg
+    assert di.evaluate(job("ML Engineer", comp_max=150000), rules)["hidden"] is True
+    assert di.evaluate(job("ML Engineer", comp_max=200000), rules)["hidden"] is False
+
+def test_comp_dismissal_without_comp_max_creates_no_rule():
+    fams = di.load_families()
+    j = job("Machine Learning Engineer", comp_max=None)
+    rules, msg, r = di.learn_dismissal(j, [], "pays too low", "2026-08-05T00:00:00Z", fams, scope="comp")
+    assert rules == [] and r is None and "no" in msg.lower()

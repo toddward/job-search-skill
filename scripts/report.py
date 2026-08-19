@@ -13,6 +13,9 @@ def _comp(j):
     if hi: return f"up to ${hi//1000}k"
     return "not listed"
 
+def _cell(s) -> str:
+    return str(s or "").replace("|", "\\|")
+
 def render(run: dict, result: dict, learned=(), decisions=()) -> str:
     c = result.get("counts", {})
     date = (run.get("started_at") or common.utcnow())[:10]
@@ -23,15 +26,15 @@ def render(run: dict, result: dict, learned=(), decisions=()) -> str:
     L += ["", "## Top matches", "", "| # | fit | role | company | location | comp | posted | source | link |", "|---|---|---|---|---|---|---|---|---|"]
     items = []
     for n, j in enumerate(result.get("ranked", []), 1):
-        L.append(f"| {n} | {j.get('adjusted_fit', j.get('fit_score'))} | {j.get('title')} | {j.get('company')} | {j.get('location','')} | {_comp(j)} | "
-                 f"{j.get('posted_at') or '—'} | {j.get('source','')} | {j.get('canonical_url','')} |")
+        L.append(f"| {n} | {j.get('adjusted_fit', j.get('fit_score'))} | {_cell(j.get('title'))} | {_cell(j.get('company'))} | {_cell(j.get('location',''))} | {_comp(j)} | "
+                 f"{j.get('posted_at') or '—'} | {_cell(j.get('source',''))} | {j.get('canonical_url','')} |")
         items.append({"n": n, "fp": j["fingerprint"], "title": j.get("title"), "company": j.get("company"), "fit": j.get("adjusted_fit", j.get("fit_score")), "url": j.get("canonical_url")})
     L.append("")
     for n, j in enumerate(result.get("ranked", []), 1):
         why = "; ".join((j.get("fit_reasons") or [])[:3]) or "—"
         miss = ", ".join(((j.get("fit_breakdown") or {}).get("missing_must_haves") or [])[:4]) or "none"
         extra = f" · penalty −{j['penalty']} ({j.get('suppressed_by')})" if j.get("penalty") else ""
-        L.append(f"- **#{n} {j.get('title')} @ {j.get('company')}** — why: {why} · missing must-haves: {miss}{extra}")
+        L.append(f"- **#{n} {_cell(j.get('title'))} @ {_cell(j.get('company'))}** — why: {why} · missing must-haves: {miss}{extra}")
     manual = []
     if result.get("manual"):
         L += ["", "## Needs your decision", ""]
@@ -69,16 +72,32 @@ def append_run(home: Path, run: dict) -> None:
 def write(home: Path, date: str, run: dict, result: dict, learned=(), decisions=(), db=None) -> Path:
     home = Path(home)
     rdir = home / "reports"; rdir.mkdir(parents=True, exist_ok=True)
-    path = rdir / f"{date}.md"
+    # Map every report path ever recorded in runs.jsonl to the run_id that claimed it,
+    # so a deleted-but-recorded file's slot is never silently handed to a different run.
+    recorded = {}
+    for r in common.read_jsonl(home / "memory" / "runs.jsonl"):
+        rp = r.get("report")
+        if rp:
+            recorded[rp] = r.get("run_id")
     n = 1
-    while path.exists():
-        try:
-            if load_index(path).get("run_id") == run.get("run_id"):
-                break
-        except ValueError:
-            pass
-        n += 1
-        path = rdir / f"{date}.r{n}.md"
+    while True:
+        rel = f"reports/{date}.md" if n == 1 else f"reports/{date}.r{n}.md"
+        path = home / rel
+        owner = recorded.get(rel)
+        if owner is not None:
+            if owner == run.get("run_id"):
+                break  # retry of the same run reuses its own slot
+            n += 1
+            continue
+        if path.exists():
+            try:
+                if load_index(path).get("run_id") == run.get("run_id"):
+                    break
+            except ValueError:
+                pass
+            n += 1
+            continue
+        break  # free slot: no runs.jsonl claim, no file on disk
     md = render(run, result, learned, decisions)
     common.atomic_write(path, md)
     if db is not None:
@@ -97,8 +116,13 @@ def latest_report(home: Path, date: str | None = None, run_id: str | None = None
                 return home / r["report"]
         return None
     if date:
-        cands = sorted((home / "reports").glob(f"{date}*.md"), key=lambda p: (len(p.name), p.name))
-        return cands[-1] if cands else None
+        pat = re.compile(rf"^{re.escape(date)}(?:\.r(\d+))?\.md$")
+        cands = []
+        for p in (home / "reports").glob(f"{date}*.md"):
+            m = pat.match(p.name)
+            if m:
+                cands.append((int(m.group(1)) if m.group(1) else 1, p))
+        return max(cands, key=lambda t: t[0])[1] if cands else None
     for r in reversed(runs):
         if r.get("report") and (home / r["report"]).exists():
             return home / r["report"]

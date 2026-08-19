@@ -84,6 +84,16 @@ def learn_dismissal(job: dict, rules: list[dict], reason: str, now: str, familie
                 "created_by": "user", "evidence": [fp], "hits": 0}
         rules.append(rule)
         return rules, f"Learned: {rule['id']} never show company '{job.get('company_key')}' (HARD). Undo: /job-search unhide {rule['id']}", rule
+    if scope == "comp":
+        min_base = job.get("comp_max") or 0
+        if not min_base:
+            return rules, f"Recorded not_interested for {fp} ({reason}); job has no comp_max, no comp rule created.", None
+        rule = {"id": _next_id(rules), "scope": "comp", "min_base": min_base, "pattern": "", "family": None,
+                "strength": "hard", "penalty": 0, "reason": reason, "created": today, "created_by": "user",
+                "evidence": [fp], "hits": 0}
+        rules.append(rule)
+        return rules, (f"Learned: {rule['id']} never show comp below ${min_base:,.0f} (HARD). "
+                        f"Undo: /job-search unhide {rule['id']}"), rule
     fam = family_for(job.get("title", ""), families)
     if not fam:
         return rules, f"Recorded not_interested for {fp} ({reason}); no title family matched, no rule created.", None
