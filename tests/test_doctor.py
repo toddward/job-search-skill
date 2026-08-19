@@ -9,14 +9,13 @@ def test_probe_modes(monkeypatch):
     assert out.startswith("mode=") and " os=" in out and "$" not in out
 
 def test_bootstrap_creates_config(home, monkeypatch):
-    monkeypatch.setattr(common, "POINTER", home / "pointer")
     msgs = doctor.bootstrap(home)
     for f in ["settings.toml", "profile.md", "cover-letter-style.md", "job-board-links.md", "headless.settings.json", "mcp.headless.json"]:
         assert (home / "config" / f).exists(), f
     assert (home / ".git").exists() and (home / ".gitignore").read_text().count("browser-profile")
     hs = json.loads((home / "config" / "headless.settings.json").read_text())
     assert str(home) in json.dumps(hs) and "{{" not in json.dumps(hs)
-    assert (home / "pointer").read_text().strip() == str(home)
+    assert common.POINTER.read_text().strip() == str(home)
     (home / "config" / "settings.toml").write_text("# edited\n")
     doctor.bootstrap(home); assert (home / "config" / "settings.toml").read_text() == "# edited\n"
 
