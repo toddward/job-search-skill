@@ -71,11 +71,19 @@ def location_key(location: str, remote: str = "") -> str:
 
         # Drop trailing country tokens
         country_tokens = {"united states", "united states of america", "usa", "us", "u s", "america"}
+        country_found = False
         while segments and segments[-1] in country_tokens:
             segments.pop()
+            country_found = True
 
-        # If only one segment remains, apply no-comma logic
+        # If segments is now empty, location was country-only
+        if not segments:
+            return "us" if country_found else "unknown"
+
+        # If only one segment remains, check if it's a country token, otherwise apply no-comma logic
         if len(segments) == 1:
+            if segments[0] in country_tokens:
+                return "us"
             loc = segments[0]
         else:
             # Region = last remaining segment (mapped via STATES table)
@@ -96,7 +104,12 @@ def location_key(location: str, remote: str = "") -> str:
             else:
                 return "unknown"
 
-    # No comma: check if last 1-3 words form a state name/abbr
+    # No comma: check if it's a country token first
+    country_tokens = {"united states", "united states of america", "usa", "us", "u s", "america"}
+    if loc in country_tokens:
+        return "us"
+
+    # Check if last 1-3 words form a state name/abbr
     words = loc.split()
     region = None
     city_words = words

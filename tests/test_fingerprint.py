@@ -62,3 +62,8 @@ def test_gh_jid_requires_exact_query_key():
     assert fp.detect_source("https://careers.somecompany.com/job/123?utm_campaign=gh_jidxyz") == "other"
     assert fp.detect_source("https://careers.somecompany.com/job/123?notgh_jid=1") == "other"
     assert fp.detect_source("https://careers.somecompany.com/job/123?gh_jid=55") == "greenhouse"
+
+def test_location_key_country_only_does_not_crash():
+    assert fp.location_key("United States, USA") == "us"
+    assert fp.location_key("United States") == "us"
+    assert fp.location_key("USA, United States") == "us"
