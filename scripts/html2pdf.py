@@ -108,7 +108,7 @@ def _reportlab(md: str, out_pdf: Path) -> None:
     flush(); doc.build(story)
 
 def render_pdf(html: str, out_pdf: Path, engine: str = "auto", chrome_path: str = "auto", timeout_s: int = 30, md_for_fallback: str = "") -> dict:
-    out_pdf = Path(out_pdf); out_pdf.parent.mkdir(parents=True, exist_ok=True)
+    out_pdf = Path(out_pdf).resolve(); out_pdf.parent.mkdir(parents=True, exist_ok=True)
     warnings = []
     html_path = out_pdf.with_suffix(".html"); html_path.write_text(html, encoding="utf-8")
     browser = find_browser(chrome_path) if engine in ("auto", "chrome") else None

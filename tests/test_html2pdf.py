@@ -23,6 +23,12 @@ def test_render_pdf_with_chrome(tmp_path):
         txt = subprocess.run(["pdftotext", str(out), "-"], capture_output=True, text=True).stdout
         assert "Jane Example" in txt and "Cut latency 38%" in txt
 
+@pytest.mark.skipif(html2pdf.find_browser("auto") is None, reason="no Chrome/Chromium on this host")
+def test_render_pdf_with_chrome_relative_out_path(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    res = html2pdf.md_to_pdf(MD, "rel.pdf", common.SKILL_DIR / "assets" / "resume-template.html", "Resume")
+    assert (tmp_path / "rel.pdf").exists() and res["engine"] == "chrome"
+
 def test_reportlab_fallback(tmp_path, monkeypatch):
     pytest.importorskip("reportlab")
     out = tmp_path / "f.pdf"
