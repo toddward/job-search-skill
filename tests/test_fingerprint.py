@@ -40,3 +40,15 @@ def test_detect_source_and_priority():
 def test_titles_similar():
     assert fp.titles_similar("Senior ML Engineer", "Sr ML Eng")
     assert not fp.titles_similar("Senior ML Engineer", "Director of Engineering")
+
+def test_detect_source_uses_host_not_embedded_urls():
+    assert fp.detect_source("https://www.indeed.com/rc/clk?jk=abc&url=https://jobs.lever.co/acme/xyz") == "indeed"
+    assert fp.detect_source("https://www.linkedin.com/jobs/view/123?ref=https://boards.greenhouse.io/acme") == "linkedin"
+    assert fp.detect_source("https://www.databricks.com/company/careers/open-positions/job?gh_jid=7712233") == "greenhouse"
+    assert fp.detect_source("https://careers.example.com/jobs/123") == "other"
+
+def test_location_key_is_stable_across_formats():
+    assert fp.location_key("Seattle, Washington") == fp.location_key("Seattle, WA") == "seattle-wa"
+    assert fp.location_key("New York, NY") == fp.location_key("New York, New York") == "new-york-ny"
+    assert fp.location_key("Washington, DC, USA") == fp.location_key("Washington, D.C.") == "washington-dc"
+    assert fp.location_key("Austin, Texas") == "austin-tx" and fp.location_key("Phoenix, Arizona") == "phoenix-az"

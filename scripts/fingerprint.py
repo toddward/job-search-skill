@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Job identity: normalized keys, canonical URLs, fingerprints, source detection."""
 from __future__ import annotations
-import hashlib, json, re, sys, unicodedata
+import hashlib, json, re, unicodedata
 from difflib import SequenceMatcher
 from urllib.parse import urlsplit, urlunsplit, parse_qsl, urlencode
 
@@ -9,9 +9,18 @@ LEGAL = re.compile(r"\b(inc|llc|l l c|ltd|limited|corp|corporation|co|company|pb
 ALIASES = {"booz allen hamilton": "booz allen", "amazon web services": "amazon", "aws": "amazon",
            "google llc": "google", "alphabet": "google", "meta platforms": "meta", "microsoft corporation": "microsoft"}
 NOISE = re.compile(r"\((remote|hybrid|onsite|on-site|us|usa|united states)\)|\b(req|requisition|job)\s*#?\s*[a-z0-9\-]{3,}\b|\b[a-z]{1,3}-?\d{4,}\b", re.I)
-STATES = {"virginia": "va", "maryland": "md", "district of columbia": "dc", "d c": "dc", "california": "ca",
-          "new york": "ny", "texas": "tx", "washington state": "wa", "massachusetts": "ma", "north carolina": "nc",
-          "colorado": "co", "illinois": "il", "georgia": "ga", "florida": "fl", "pennsylvania": "pa", "new jersey": "nj"}
+STATES = {
+    "alabama": "al", "alaska": "ak", "arizona": "az", "arkansas": "ar", "california": "ca",
+    "colorado": "co", "connecticut": "ct", "delaware": "de", "district of columbia": "dc", "d c": "dc", "florida": "fl",
+    "georgia": "ga", "hawaii": "hi", "idaho": "id", "illinois": "il", "indiana": "in",
+    "iowa": "ia", "kansas": "ks", "kentucky": "ky", "louisiana": "la", "maine": "me",
+    "maryland": "md", "massachusetts": "ma", "michigan": "mi", "minnesota": "mn", "mississippi": "ms",
+    "missouri": "mo", "montana": "mt", "nebraska": "ne", "nevada": "nv", "new hampshire": "nh",
+    "new jersey": "nj", "new mexico": "nm", "new york": "ny", "north carolina": "nc", "north dakota": "nd",
+    "ohio": "oh", "oklahoma": "ok", "oregon": "or", "pennsylvania": "pa", "rhode island": "ri",
+    "south carolina": "sc", "south dakota": "sd", "tennessee": "tn", "texas": "tx", "utah": "ut",
+    "vermont": "vt", "virginia": "va", "washington": "wa", "washington state": "wa", "west virginia": "wv", "wisconsin": "wi", "wyoming": "wy"
+}
 TRACKING = re.compile(r"^(utm_|gh_|lever-|ashby_|ref$|refid$|source$|src$|trk$|trackingid$|position$|pagenum$|from$|alid$|fbclid$|gclid$|mc_)", re.I)
 SOURCES = [
     ("greenhouse", r"greenhouse\.io"), ("lever", r"jobs\.lever\.co|lever\.co"), ("ashby", r"ashbyhq\.com"),
@@ -55,10 +64,48 @@ def location_key(location: str, remote: str = "") -> str:
     if remote == "remote" or "remote" in loc.split():
         rest = [p for p in loc.split() if p not in ("remote", "us", "usa", "united", "states", "only")]
         return "remote-us" if not rest else "remote-" + "-".join(rest)
-    for long, short in sorted(STATES.items(), key=lambda kv: -len(kv[0])):
-        loc = re.sub(rf"\b{long}\b", short, loc)
-    parts = [p for p in loc.split() if p not in ("usa", "us", "united", "states")]
-    return "-".join(parts) or "unknown"
+
+    # Handle comma-separated format: split on LAST comma
+    if "," in location:
+        parts = location.rsplit(",", 1)
+        city = _norm(parts[0]).replace(" ", "-")
+        region_str = _norm(parts[1])
+    else:
+        # No comma: check if last 1-3 words form a state name/abbr
+        words = loc.split()
+        region = None
+        city_words = words
+        for i in range(1, 4):
+            if i <= len(words):
+                candidate = " ".join(words[-i:])
+                if candidate in STATES or candidate.replace("-", " ") in STATES:
+                    region = candidate
+                    city_words = words[:-i]
+                    break
+        city = "-".join(city_words) if city_words else ""
+        region_str = region or ""
+
+    # Strip trailing usa/us/united states from region
+    region_parts = region_str.split()
+    while region_parts and region_parts[-1] in ("usa", "us", "united", "states"):
+        region_parts.pop()
+    region_str = " ".join(region_parts)
+
+    # Map region via STATES table
+    if region_str:
+        region_abbr = STATES.get(region_str, region_str.replace(" ", "-"))
+    else:
+        region_abbr = ""
+
+    # Combine city and region
+    if city and region_abbr:
+        return f"{city}-{region_abbr}"
+    elif region_abbr:
+        return region_abbr
+    elif city:
+        return city
+    else:
+        return "unknown"
 
 def canonical_url(url: str) -> str:
     p = urlsplit((url or "").strip())
@@ -78,9 +125,25 @@ def posting_id(url: str) -> str:
 
 def detect_source(url: str) -> str:
     u = (url or "").lower()
+    p = urlsplit(u)
+    host = p.netloc.lower()
+    host_path = host + p.path.lower()
+
+    # Check host patterns first
     for name, pat in SOURCES:
-        if re.search(pat, u):
-            return name
+        if name == "phenom":
+            # Phenom: match host+path pattern only (careers.example.com/us/en)
+            if re.search(pat, host_path):
+                return name
+        else:
+            # All others: match host only
+            if re.search(pat, host):
+                return name
+
+    # Check gh_jid query parameter (Greenhouse board embedded on company domain)
+    if "gh_jid" in p.query:
+        return "greenhouse"
+
     return "other"
 
 def canonical_priority(url: str) -> int:
