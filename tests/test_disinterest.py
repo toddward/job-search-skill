@@ -1,6 +1,5 @@
-import json, sys
+import json
 from pathlib import Path
-sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))
 import disinterest as di
 
 import hashlib
@@ -55,3 +54,17 @@ def test_unhide_and_retro_hits(home):
     p = home / "memory" / "disinterest.json"
     di.save_rules(p, [{"id": "dis-001", "scope": "title", "pattern": "x", "strength": "soft", "penalty": 20, "hits": 0}])
     assert di.load_rules(p)[0]["id"] == "dis-001"
+
+def test_architect_titles_prefer_architecture_family():
+    fams = di.load_families()
+    assert di.family_for("AI Platform Architect", fams) == "architecture"
+    assert di.family_for("Cloud Architect", fams) == "architecture"
+    assert di.family_for("Platform Engineer", fams) == "infrastructure"
+    assert di.family_for("SRE", fams) == "infrastructure"
+
+def test_repeat_dismissal_message_has_undo():
+    fams = di.load_families(); rules = []
+    rules, _, _ = di.learn_dismissal(job("Sales Engineer"), rules, "x", "2026-08-01T00:00:00Z", fams)
+    rules, _, _ = di.learn_dismissal(job("Account Executive"), rules, "x", "2026-08-02T00:00:00Z", fams)
+    rules, msg, _ = di.learn_dismissal(job("Field Engineer"), rules, "x", "2026-08-03T00:00:00Z", fams)
+    assert "unhide dis-001" in msg and "HARD" in msg

@@ -104,7 +104,7 @@ def learn_dismissal(job: dict, rules: list[dict], reason: str, now: str, familie
         msg = (f"Learned: {existing['id']} {fam} is now HARD (2nd dismissal in this family since {existing['created']}).\n"
                f"  pattern: {existing['pattern']}\n  Undo: /job-search unhide {existing['id']}   Soften: /job-search unhide {existing['id']} --to soft")
         return rules, msg, existing
-    return rules, f"Recorded dismissal under {existing['id']} ({fam}, {existing['strength']}).", existing
+    return rules, f"Recorded dismissal under {existing['id']} ({fam}, {existing['strength'].upper()}). Undo: /job-search unhide {existing['id']}", existing
 
 def unhide(rules: list[dict], rule_id: str, to: str | None):
     rules = list(rules)
