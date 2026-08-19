@@ -60,8 +60,11 @@ whole point, not overhead to skip.
    allowed-tools: Bash(${CLAUDE_SKILL_DIR}/scripts/runtime_probe.py)
    ```
    `scripts/runtime_probe.py` is referenced this way in `SKILL.md`'s `!` injection —
-   its own stdout is likewise `$`-free (checked by `tests/test_doctor.py`) so nothing
-   it prints can trip the same check downstream.
+   its own stdout is likewise `$`-free (checked by `tests/test_doctor.py`): any
+   interpolated field (`entrypoint`, `home`, `python`) that contains a `$`, backtick,
+   backslash, or newline — e.g. a `JOBSEARCH_HOME` set to something like
+   `/tmp/$USER/home` — is sanitized to the literal `<unsafe-path>` before printing, so
+   nothing it prints can trip the same check downstream.
 
 ## `mcp.headless.json`
 

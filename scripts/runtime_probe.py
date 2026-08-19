@@ -5,6 +5,12 @@ import os, sys
 import common
 
 INTERACTIVE = {"cli", "vscode", "jetbrains", "desktop"}
+UNSAFE_CHARS = ("$", "`", "\\", "\n")
+
+def _safe(s: str) -> str:
+    """Neutralize a value before it goes into the printed line: a `$` or backtick surviving
+    into a `!`-injected result silently aborts the whole skill invocation (see references/headless.md)."""
+    return "<unsafe-path>" if any(c in s for c in UNSAFE_CHARS) else s
 
 def probe() -> dict:
     entry = os.environ.get("CLAUDE_CODE_ENTRYPOINT", "unset")
@@ -17,4 +23,4 @@ def probe() -> dict:
 
 if __name__ == "__main__":
     p = probe()
-    print(f"mode={p['mode']} entrypoint={p['entrypoint']} os={p['os']} home={p['home']} python={p['python']}")
+    print(f"mode={p['mode']} entrypoint={_safe(p['entrypoint'])} os={p['os']} home={_safe(p['home'])} python={_safe(p['python'])}")

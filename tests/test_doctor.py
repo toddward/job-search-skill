@@ -8,7 +8,13 @@ def test_probe_modes(monkeypatch):
     out = subprocess.run([sys.executable, str(common.SKILL_DIR / "scripts" / "runtime_probe.py")], capture_output=True, text=True).stdout
     assert out.startswith("mode=") and " os=" in out and "$" not in out
 
-def test_bootstrap_creates_config(home, monkeypatch):
+def test_probe_sanitizes_dollar_in_home(monkeypatch):
+    import subprocess, sys, common
+    env = dict(__import__("os").environ, JOBSEARCH_HOME="/tmp/x/$USER/home", CLAUDE_CODE_ENTRYPOINT="cli")
+    out = subprocess.run([sys.executable, str(common.SKILL_DIR / "scripts" / "runtime_probe.py")], capture_output=True, text=True, env=env).stdout
+    assert "$" not in out and "`" not in out and "mode=interactive" in out and "<unsafe-path>" in out
+
+def test_bootstrap_creates_config(home):
     msgs = doctor.bootstrap(home)
     for f in ["settings.toml", "profile.md", "cover-letter-style.md", "job-board-links.md", "headless.settings.json", "mcp.headless.json"]:
         assert (home / "config" / f).exists(), f
