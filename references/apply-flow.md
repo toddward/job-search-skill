@@ -5,6 +5,11 @@ world side effect it cannot undo. Two rules govern everything below: **the model
 a deterministic script decides whether to submit**, and **`auto_submit` defaults to
 `false`** — every run ends in `review` unless the user opted in.
 
+The model cannot enable `auto_submit`: only the human edits `config/settings.toml`.
+`config.py set-local` refuses any `apply.*` key (exit 2, `refused: apply.* is
+hand-edited in settings.toml only`), so nothing the skill can call reaches the submit
+gate — not `auto_submit`, `submit_threshold`, or `max_submits_per_run`.
+
 ## State machine
 
 ```text
@@ -48,7 +53,8 @@ npx -y @playwright/mcp@latest \
   `--remote-debugging-port` instead of launching a new one — use it when the user
   wants to drive their own logged-in browser (`apply.cdp_endpoint` in config).
 - **Headless only** when `JOBSEARCH_BROWSER_MODE=headless` is set (a headless Linux
-  host). In that mode every headed-only ATS (Workday, Taleo, iCIMS, anything with
+  host): `config.load()` applies that env override as `apply.browser_mode =
+  "headless"`, so read the mode off the loaded config rather than the environment. In that mode every headed-only ATS (Workday, Taleo, iCIMS, anything with
   login/MFA) is downgraded straight to `needs_manual_apply` with
   `reason_code: headed_session_required` — headless never attempts login-walled fill.
 - One tab per application via `browser_tabs`; never reuse a snapshot ref across a
@@ -71,7 +77,8 @@ npx -y @playwright/mcp@latest \
    parser silently overwrote (name, email, phone, employer, dates).
 6. For each answered or flagged question, append an entry to `answers.json`:
    `{question, answer, source: profile|resume|ai_draft, needs_review}`.
-7. **Screenshot** after every meaningful step into `applications/<fingerprint>/evidence/`.
+7. **Screenshot** after every meaningful step into
+   `applications/<YYYY-MM-DD>-<fingerprint>/evidence/`.
 8. On an intermediate **Next/Continue/Save** control: validate first, click only its
    current ref, wait for the heading/progress indicator to change, snapshot again.
    Never press Enter to advance.
@@ -154,7 +161,7 @@ value moves the application to `review`; it is never silently skipped or guessed
 ## Evidence manifest
 
 At the stop point (final boundary, or any `needs_manual_apply`), write into
-`applications/<fingerprint>/evidence/`:
+`applications/<YYYY-MM-DD>-<fingerprint>/evidence/`:
 
 - `<ts>-review.md` — the `browser_snapshot` at the stop point
 - `<ts>-pre-submit.png` — full-page screenshot (`scale: "css"`)
@@ -180,6 +187,11 @@ Never write a learned note from a failed or partial fill.
 `auto_submit` (platform ToS prohibit automating their apply flow). The skill may
 record the posting and open the URL for the user; it must not fill, click, or
 simulate submission there.
+
+This is enforced on the adapter **name**, not on the `adapter_manual_only` flag the
+caller passes: `apply_guard.MANUAL_ONLY_ADAPTERS` (`linkedin-easy-apply`,
+`indeed-apply`, `linkedin`, `indeed`) denies with `manual_only` even when the state
+file claims `adapter_manual_only: false`, and `--i-mean-it` does not reopen it.
 
 ## `jobs.jsonl` write-back
 

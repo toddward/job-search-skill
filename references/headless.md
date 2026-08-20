@@ -42,6 +42,14 @@ isolated containers/VMs only. This run writes into a real, logged-in browser pro
 (`config/browser-profile`); an explicit allowlist in `headless.settings.json` is the
 whole point, not overhead to skip.
 
+**Keep the allowlist narrow.** `assets/headless.settings.example.json` deliberately does
+*not* grant `Bash(python3 *)`, `Bash(cp *)`, or `Bash(mv *)`: a bare `python3 *` is
+arbitrary code execution, which makes every other entry in the list decorative, and
+`cp`/`mv` let an unattended run move files anywhere the user can write. The skill's own
+scripts are already reachable through `Bash(python3 {{SKILL}}/scripts/*)`, and the run
+writes its files with `Write`/`Edit`. Add a rule only when a run actually fails on it,
+and scope it to a path.
+
 ## Two verified gotchas
 
 1. **A leading `select` verb eats two positional arguments.** The Claude Code
@@ -117,8 +125,9 @@ by hand (or have `setup` do it) before installing it with the OS scheduler.
   while the machine was off.
 - **Headless Linux server/container:** additionally set
   `JOBSEARCH_BROWSER_MODE=headless` (env in the `.service` unit, or exported before
-  cron). `config.py` reads it as an override that forces Playwright's `--headless` and
-  downgrades any ATS that needs a headed session straight to `needs_manual_apply`.
+  cron). `config.load()` applies the env override as `apply.browser_mode = "headless"`
+  (it wins over `settings.toml`), which forces Playwright's `--headless` and downgrades
+  any ATS that needs a headed session straight to `needs_manual_apply`.
 
 ## Idempotence
 

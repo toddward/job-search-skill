@@ -137,3 +137,16 @@ def test_reserve_slot_atomic_under_concurrency_still_exact(home):
         results = list(ex.map(lambda i: ag.reserve_slot(home, "runC2", f"fp{i}", 3), range(8)))
     assert sum(1 for r in results if r) == 3
     assert ag.submits_this_run(home, "runC2") == 3
+
+def test_manual_only_adapters_denied_by_name(home):
+    """I2: the adapter NAME is authoritative — a stale/forged adapter_manual_only=False cannot
+    talk the guard into automating a platform whose ToS forbid it."""
+    for name in ("linkedin-easy-apply", "indeed-apply", "LinkedIn", "Indeed", "  indeed-apply  "):
+        s = good(); s["adapter"], s["adapter_manual_only"] = name, False
+        d = ag.decide(s, CFG, {"submits_this_run": 0})
+        assert d["allow"] is False and "manual_only" in d["reason_codes"], name
+        # not even an explicit human override reopens it
+        assert ag.decide(s, CFG, {"submits_this_run": 0}, i_mean_it=True)["allow"] is False
+    assert ag.MANUAL_ONLY_ADAPTERS == {"linkedin-easy-apply", "indeed-apply", "linkedin", "indeed"}
+    s = good(); s["adapter"] = "greenhouse"
+    assert ag.decide(s, CFG, {"submits_this_run": 0})["allow"] is True

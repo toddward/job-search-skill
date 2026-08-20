@@ -42,3 +42,15 @@ def test_check_reports_structure(home):
     names = {c["name"] for c in r["checks"]}
     assert {"python", "data_home", "resume", "settings", "boards", "pdf_browser", "pdftotext"} <= names
     assert all({"name", "ok", "detail", "fix"} <= set(c) for c in r["checks"])
+
+def test_headless_settings_allowlist_is_narrow():
+    """I4: a bare `python3 *` is arbitrary code execution — it makes the allowlist decorative."""
+    import json, common
+    s = json.loads((common.SKILL_DIR / "assets" / "headless.settings.example.json").read_text())
+    allow = s["permissions"]["allow"]
+    for banned in ("Bash(python3 *)", "Bash(cp *)", "Bash(mv *)"):
+        assert banned not in allow, banned
+    for kept in ("Bash(python3 {{SKILL}}/scripts/*)", "Bash(mkdir *)", "Bash(cat *)",
+                 "Bash(firecrawl *)", "Bash(pdftotext *)", "Bash(git -C {{HOME}} *)"):
+        assert kept in allow, kept
+    assert "AskUserQuestion" in s["permissions"]["deny"]

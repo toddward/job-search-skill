@@ -29,3 +29,26 @@ def test_platform_override_applied(home, monkeypatch):
     (home / "config" / "settings.toml").write_text('[platform_overrides.linux.apply]\nbrowser_channel = "chromium"\n')
     cfg = config.load(home)
     assert cfg["apply"]["browser_channel"] == "chromium"
+
+def test_set_local_refuses_apply_keys(home):
+    import pytest, subprocess, sys, common
+    for key in ("apply.auto_submit", "apply.submit_threshold", "apply"):
+        with pytest.raises(ValueError):
+            config.set_local(home, key, True)
+    assert not (home / "config" / "settings.local.json").exists()
+    assert config.load(home)["apply"]["auto_submit"] is False
+    r = subprocess.run([sys.executable, str(common.SKILL_DIR / "scripts" / "config.py"), "--home", str(home),
+                        "set-local", "apply.auto_submit", "true"], capture_output=True, text=True)
+    assert r.returncode == 2 and "refused: apply.* is hand-edited in settings.toml only" in r.stderr
+    assert config.load(home)["apply"]["auto_submit"] is False
+    config.set_local(home, "notion.database_id", "ok")  # non-apply keys still work
+    assert config.load(home)["notion"]["database_id"] == "ok"
+
+def test_browser_mode_env_override(home, monkeypatch):
+    assert config.load(home)["apply"]["browser_mode"] == "auto"
+    monkeypatch.setenv("JOBSEARCH_BROWSER_MODE", "headless")
+    assert config.load(home)["apply"]["browser_mode"] == "headless"
+    (home / "config" / "settings.toml").write_text('[apply]\nbrowser_mode = "headed"\n')
+    assert config.load(home)["apply"]["browser_mode"] == "headless"  # env wins over TOML
+    monkeypatch.setenv("JOBSEARCH_BROWSER_MODE", "headed")
+    assert config.load(home)["apply"]["browser_mode"] == "headed"    # any other value is inert

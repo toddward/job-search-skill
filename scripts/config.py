@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Load and merge job-search configuration (TOML + local JSON + platform overrides)."""
 from __future__ import annotations
-import copy, json, sys
+import copy, json, os, sys
 from pathlib import Path
 try:
     import tomllib
@@ -55,6 +55,9 @@ def load(home: Path | None = None) -> dict:
     cfg = _merge(cfg, local)
     po = (cfg.get("platform_overrides") or {}).get(common.host_os()) or {}
     cfg = _merge(cfg, po)
+    # Env override for headless hosts (systemd unit / cron): the scheduler cannot edit TOML.
+    if os.environ.get("JOBSEARCH_BROWSER_MODE") == "headless":
+        cfg.setdefault("apply", {})["browser_mode"] = "headless"
     cfg["_home"] = str(home)
     return cfg
 
@@ -66,7 +69,13 @@ def get(cfg: dict, dotted: str, default=None):
         cur = cur[part]
     return cur
 
+APPLY_REFUSAL = "refused: apply.* is hand-edited in settings.toml only"
+
 def set_local(home: Path, dotted: str, value) -> None:
+    # settings.local.json is machine-written, so nothing the model can call may reach the
+    # submit gate: auto_submit/submit_threshold/caps stay a human edit in settings.toml.
+    if dotted == "apply" or dotted.startswith("apply."):
+        raise ValueError(APPLY_REFUSAL)
     path = Path(home) / "config" / "settings.local.json"
     data = common.read_json(path, {}) or {}
     cur = data
@@ -102,7 +111,10 @@ def main(argv=None):
             val = json.loads(a.value)
         except ValueError:
             pass
-        set_local(home, a.key, val)
+        try:
+            set_local(home, a.key, val)
+        except ValueError as e:
+            print(str(e), file=sys.stderr); sys.exit(2)
         print("ok")
 
 if __name__ == "__main__":

@@ -12,6 +12,9 @@ _BOOL_KEYS = ("captcha_seen", "login_wall", "mfa_prompt", "canary_ok", "posting_
               "final_control_found", "adapter_manual_only")
 _INT_KEYS = ("validation_errors", "needs_review_answers")
 _FLOAT_KEYS = ("detection_confidence", "fit_score")
+# Platform ToS forbid automating these apply flows: deny on the adapter NAME, so a caller that
+# forgets (or fakes) adapter_manual_only cannot talk the guard into a click.
+MANUAL_ONLY_ADAPTERS = {"linkedin-easy-apply", "indeed-apply", "linkedin", "indeed"}
 
 def decide(state: dict, cfg_apply: dict, run_state: dict, i_mean_it: bool = False) -> dict:
     codes, reasons = [], []
@@ -55,7 +58,7 @@ def decide(state: dict, cfg_apply: dict, run_state: dict, i_mean_it: bool = Fals
             deny("below_threshold", f"fit {state.get('fit_score')} < threshold {cfg_apply.get('submit_threshold', 80)}")
         if run_state.get("submits_this_run", 0) >= cfg_apply.get("max_submits_per_run", 5):
             deny("cap_reached", "per-run submit cap reached")
-    if state.get("adapter_manual_only"):
+    if state.get("adapter_manual_only") or str(state.get("adapter") or "").strip().lower() in MANUAL_ONLY_ADAPTERS:
         deny("manual_only", f"{state.get('adapter')} is manual-only (platform terms)")
     if (state.get("detection_confidence") or 0) < 0.85:
         deny("low_confidence", "ATS detection confidence < 0.85")
