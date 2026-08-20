@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Eligibility (cooldown/snooze/status), expiry, and ranking of jobs for a report."""
 from __future__ import annotations
-import json, sys
+import json, re, sys
 import common, disinterest as di
 
 def eligible(job: dict, now: str, mem: dict):
@@ -36,6 +36,20 @@ def apply_expiry(job: dict, now: str, mem: dict) -> dict:
         job["status"], job["status_reason"], job["status_changed_at"] = "shown", "selection expired", now
     return job
 
+def _posted_num(posted) -> int:
+    """Sortable YYYYMMDD from anything a board hands back ('2026-08-01T00:00:00Z', '2026/08/01',
+    None, garbage). Never raises — an unusable date sorts as the oldest possible posting."""
+    return int(re.sub(r"[^0-9]", "", str(posted or "")[:10]) or "00000101")
+
+def _too_old(job: dict, now: str, max_age_days: int) -> bool:
+    """search.max_age_days: a stale posting we have not acted on is not worth a slot."""
+    if not max_age_days or job.get("status") not in ("new", "shown") or not job.get("posted_at"):
+        return False
+    try:
+        return common.days_between(str(job["posted_at"])[:10], now) > max_age_days
+    except ValueError:
+        return False
+
 def rank(jobs: list[dict], rules: list[dict], now: str, cfg: dict) -> dict:
     mem, search = cfg["memory"], cfg["search"]
     min_fit = (cfg.get("scoring") or {}).get("min_fit_to_show", 0)
@@ -52,6 +66,8 @@ def rank(jobs: list[dict], rules: list[dict], now: str, cfg: dict) -> dict:
             if why in ("cooldown", "extended_cooldown", "snoozed"):
                 counts["in_cooldown"] += 1
             continue
+        if _too_old(job, now, int(search.get("max_age_days") or 0)):
+            counts["suppressed"] += 1; continue
         ev = di.evaluate(job, rules)
         job["suppressed_by"] = ev["rule_id"] if (ev["hidden"] or ev["penalty"]) else None
         if ev["hidden"]:
@@ -62,7 +78,7 @@ def rank(jobs: list[dict], rules: list[dict], now: str, cfg: dict) -> dict:
         if adj < min_fit:
             counts["suppressed"] += 1; continue
         ranked.append(dict(job, adjusted_fit=adj, penalty=ev["penalty"]))
-    ranked.sort(key=lambda r: (-r["adjusted_fit"], -int((r.get("posted_at") or "0000-01-01").replace("-", "")), r.get("first_seen") or ""))
+    ranked.sort(key=lambda r: (-r["adjusted_fit"], -_posted_num(r.get("posted_at")), r.get("first_seen") or ""))
     ranked = ranked[: int(search.get("max_results", 12))]
     counts["listed"] = len(ranked)
     return {"ranked": ranked, "manual": manual, "suppressed_high_fit": supp_hi, "counts": counts,

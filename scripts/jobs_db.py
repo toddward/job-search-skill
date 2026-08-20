@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """JSONL job store: one record per fingerprint, atomic writes, quarantine of bad lines."""
 from __future__ import annotations
-import json, sys
+import json, re, sys
 from pathlib import Path
 import common, fingerprint as fpmod
 
@@ -13,6 +13,24 @@ KEY_ORDER = ["schema", "fingerprint", "title", "company", "company_key", "title_
              "suppressed_by", "content_hash", "version", "application_dir", "applied_at", "submitted",
              "notion_page_id", "notion_synced_at", "run_ids", "description_path", "notes"]
 REQUIRED = ["fingerprint", "title", "company", "canonical_url", "source", "first_seen", "last_seen", "status"]
+
+def _day(v):
+    """Normalize a date/timestamp to a bare YYYY-MM-DD; rank/report/expiry compare these as
+    plain strings, so a stored '2026-08-01T00:00:00Z' would sort and compare wrong."""
+    if v is None:
+        return None
+    return str(v).strip()[:10] or None
+
+def _money(v):
+    """Comp fields must be numbers: boards hand back '$215,000' or '215000.0' just as often."""
+    if v is None or isinstance(v, bool):
+        return None
+    if isinstance(v, (int, float)):
+        return int(v)
+    try:
+        return int(float(re.sub(r"[^0-9.\-]", "", str(v))))
+    except ValueError:
+        return None
 
 def _ordered(rec: dict) -> dict:
     out = {k: rec[k] for k in KEY_ORDER if k in rec}
@@ -86,8 +104,8 @@ class JobsDB:
                    "company_key": fpmod.company_key(rec["company"]), "title_key": fpmod.title_key(rec["title"]),
                    "location": rec.get("location", ""), "location_key": fpmod.location_key(rec.get("location", ""), remote),
                    "remote": remote or "unknown", "url": url, "canonical_url": src["canonical_url"], "source": src["source"],
-                   "sources": [src], "posted_at": rec.get("posted_at"), "closes_at": rec.get("closes_at"),
-                   "comp_min": rec.get("comp_min"), "comp_max": rec.get("comp_max"), "comp_currency": rec.get("comp_currency", "USD"),
+                   "sources": [src], "posted_at": _day(rec.get("posted_at")), "closes_at": _day(rec.get("closes_at")),
+                   "comp_min": _money(rec.get("comp_min")), "comp_max": _money(rec.get("comp_max")), "comp_currency": rec.get("comp_currency", "USD"),
                    "comp_basis": rec.get("comp_basis"), "first_seen": now, "last_seen": now, "last_shown": None,
                    "shown_count": 0, "snooze_until": None, "status": "new", "status_changed_at": now, "status_reason": None,
                    "fit_score": rec.get("fit_score"), "fit_breakdown": rec.get("fit_breakdown"), "fit_reasons": rec.get("fit_reasons", []),
@@ -97,24 +115,31 @@ class JobsDB:
             self._rows[fp] = cur
             return cur
         cur["last_seen"] = now
-        existing = next((s for s in cur["sources"] if s["posting_id"] == src["posting_id"]), None)
-        if existing:
-            existing["last_seen"] = now
-        else:
-            cur["sources"].append(src)
-        best = min(cur["sources"], key=lambda s: (fpmod.canonical_priority(s["canonical_url"]), s["first_seen"]))
-        cur["canonical_url"], cur["source"], cur["url"] = best["canonical_url"], best["source"], best["url"]
+        # A partial write-back (e.g. {fingerprint, fit_score}) carries no URL. Registering the
+        # empty-URL "source" it would synthesize, and re-electing the canonical from it, used to
+        # overwrite a real greenhouse canonical_url/source/url with "" / "other".
+        if url:
+            existing = next((s for s in cur["sources"] if s["posting_id"] == src["posting_id"]), None)
+            if existing:
+                existing["last_seen"] = now
+            else:
+                cur["sources"].append(src)
+            best = min(cur["sources"], key=lambda s: (fpmod.canonical_priority(s["canonical_url"]), s["first_seen"]))
+            cur["canonical_url"], cur["source"], cur["url"] = best["canonical_url"], best["source"], best["url"]
         old_posted_at = cur.get("posted_at") or ""
+        _norm = {"posted_at": _day, "closes_at": _day, "comp_min": _money, "comp_max": _money}
         for k in ("posted_at", "closes_at", "comp_min", "comp_max", "comp_basis", "description_path",
                   "fit_score", "fit_breakdown", "fit_reasons", "snooze_until"):
             if rec.get(k) is not None:
-                cur[k] = rec[k]
+                v = _norm[k](rec[k]) if k in _norm else rec[k]
+                if v is not None:  # an unparseable value never clobbers a good stored one
+                    cur[k] = v
         for rid in rec.get("run_ids", []):
             if rid not in cur["run_ids"]:
                 cur["run_ids"].append(rid)
         new_hash = rec.get("content_hash")
         if new_hash and cur.get("content_hash") and new_hash != cur["content_hash"] and \
-           (rec.get("posted_at") or "") > old_posted_at:
+           (_day(rec.get("posted_at")) or "") > old_posted_at:
             cur["version"] = int(cur.get("version", 1)) + 1
             cur["status"], cur["last_shown"], cur["status_changed_at"] = "new", None, now
             cur["status_reason"] = "reposted with material changes"

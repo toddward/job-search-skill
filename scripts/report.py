@@ -7,8 +7,18 @@ import common
 
 INDEX_RE = re.compile(r"```json job-index\n(.*?)\n```", re.S)
 
+def _money(x):
+    """Comp values reach the report as int, float, or a board's '215,000' string. An
+    unparseable value is treated as absent — a report must never crash on one cell."""
+    if x is None or isinstance(x, bool):
+        return None
+    try:
+        return int(float(re.sub(r"[^0-9.\-]", "", str(x))))
+    except ValueError:
+        return None
+
 def _comp(j):
-    lo, hi = j.get("comp_min"), j.get("comp_max")
+    lo, hi = _money(j.get("comp_min")), _money(j.get("comp_max"))
     if lo and hi: return f"${lo//1000}–{hi//1000}k"
     if hi: return f"up to ${hi//1000}k"
     return "not listed"

@@ -58,3 +58,26 @@ def test_fit_fields_and_snooze_persist_on_reupsert(home):
     assert reloaded["fit_score"] == 87 and reloaded["fit_breakdown"] == {"must_have": 35.0}
     assert reloaded["fit_reasons"] == ["x"] and reloaded["snooze_until"] == "2026-09-01T00:00:00Z"
     assert reloaded["first_seen"] == first_seen and reloaded["status"] == status
+
+def test_partial_writeback_does_not_corrupt_canonical_url(home):
+    """C2: a {fingerprint, fit_score} write-back carries no URL — it must not re-elect the canonical."""
+    db = JobsDB(home / "memory" / "jobs.jsonl")
+    r = db.upsert(rec(), now="2026-08-19T10:00:00Z")
+    db.upsert(rec(url="https://www.linkedin.com/jobs/view/42?trackingId=x", source="linkedin"), now="2026-08-19T10:30:00Z")
+    before = {k: r[k] for k in ("url", "canonical_url", "source")}
+    n_sources = len(r["sources"])
+    r2 = db.upsert({"fingerprint": "b7f3c1a9d2e40185", "fit_score": 91}, now="2026-08-19T11:00:00Z")
+    assert {k: r2[k] for k in ("url", "canonical_url", "source")} == before
+    assert r2["source"] == "greenhouse" and len(r2["sources"]) == n_sources
+    assert r2["fit_score"] == 91 and r2["last_seen"] == "2026-08-19T11:00:00Z"
+
+def test_dates_normalized_to_day_and_comp_coerced(home):
+    """C3/I7: timestamped posted_at broke rank's sort key; stringly comp broke the report."""
+    db = JobsDB(home / "memory" / "jobs.jsonl")
+    r = db.upsert(rec(posted_at="2026-08-01T00:00:00Z", closes_at="2026-09-30T23:59:59Z",
+                      comp_min="$215,000", comp_max="270000.0"), now="2026-08-19T10:00:00Z")
+    assert r["posted_at"] == "2026-08-01" and r["closes_at"] == "2026-09-30"
+    assert r["comp_min"] == 215000 and r["comp_max"] == 270000
+    r2 = db.upsert(rec(posted_at="2026-08-18T12:00:00-04:00", comp_max="not disclosed"), now="2026-08-19T11:00:00Z")
+    assert r2["posted_at"] == "2026-08-18"
+    assert r2["comp_max"] == 270000  # unparseable value never clobbers a good stored one

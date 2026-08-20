@@ -41,3 +41,26 @@ def test_rank_orders_penalizes_and_counts():
     assert [x["fingerprint"] for x in r["manual"]] == ["d"]
     assert [x["fingerprint"] for x in r["suppressed_high_fit"]] == ["f"]
     assert r["counts"]["in_cooldown"] == 1 and r["counts"]["suppressed"] >= 2 and r["widen"] is True
+
+def test_sort_key_survives_timestamped_posted_at():
+    """C3: rank used int(posted_at.replace('-','')) — a full timestamp raised ValueError."""
+    assert rank._posted_num("2026-08-01T00:00:00Z") == 20260801
+    assert rank._posted_num(None) == rank._posted_num("") == rank._posted_num("n/a") == 101
+    now = "2026-08-19T10:33:00Z"
+    cfg = {"memory": MEM, "search": config.DEFAULTS["search"], "scoring": config.DEFAULTS["scoring"]}
+    jobs = [j("a", fit=70, posted_at="2026-08-18T00:00:00Z"), j("b", fit=70, posted_at="2026-08-19"), j("c", fit=70, posted_at=None)]
+    r = rank.rank(jobs, [], now, cfg)
+    assert [x["fingerprint"] for x in r["ranked"]] == ["b", "a", "c"]
+
+def test_max_age_days_suppresses_stale_postings():
+    now = "2026-08-19T10:33:00Z"
+    cfg = {"memory": MEM, "search": dict(config.DEFAULTS["search"], max_age_days=30), "scoring": config.DEFAULTS["scoring"]}
+    jobs = [j("fresh", posted_at="2026-08-10"), j("stale", posted_at="2026-06-20"),
+            j("undated", posted_at=None), j("stale_applied", status="needs_manual_apply", posted_at="2026-06-20")]
+    r = rank.rank(jobs, [], now, cfg)
+    ids = [x["fingerprint"] for x in r["ranked"]]
+    assert "fresh" in ids and "undated" in ids and "stale" not in ids
+    assert r["counts"]["suppressed"] >= 1
+    assert [x["fingerprint"] for x in r["manual"]] == ["stale_applied"]
+    off = dict(cfg, search=dict(cfg["search"], max_age_days=0))
+    assert "stale" in [x["fingerprint"] for x in rank.rank(jobs, [], now, off)["ranked"]]

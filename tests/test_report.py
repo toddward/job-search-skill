@@ -74,3 +74,18 @@ def test_render_escapes_pipe_in_table_cells():
     assert rows and "Engineer \\| Full Stack" in rows[0]
     idx = report.load_index_text(md)
     assert idx["items"][0]["title"] == "Engineer | Full Stack"
+
+def test_comp_cell_tolerates_strings_and_floats():
+    """I7: _comp did lo//1000 on whatever it was handed."""
+    assert report._comp({"comp_min": "215000", "comp_max": 270000.0}) == "$215–270k"
+    assert report._comp({"comp_min": "$215,000", "comp_max": "$270,000"}) == "$215–270k"
+    assert report._comp({"comp_max": "180000"}) == "up to $180k"
+    assert report._comp({"comp_min": "competitive", "comp_max": None}) == "not listed"
+
+def test_write_with_string_comp_does_not_raise(home):
+    db = jobs_db.JobsDB(home / "memory" / "jobs.jsonl")
+    r = result()
+    r["ranked"][0].update(comp_min="215,000", comp_max="270000")
+    r["ranked"][1].update(comp_min="tbd", comp_max="tbd")
+    p = report.write(home, "2026-08-19", run(), r, db=db)
+    assert "$215–270k" in p.read_text() and "not listed" in p.read_text()
