@@ -63,7 +63,11 @@ def _description(job: dict, home: Path | None) -> str:
                 text = p.read_text(encoding="utf-8", errors="replace")
             except OSError:
                 return ""
-            if p.suffix.lower() in (".html", ".htm") or text.lstrip().startswith("<"):
+            head = text.lstrip()[:1]
+            if p.suffix.lower() == ".json" or head == "{":
+                import jd_extract          # stored ATS JSON: mirror the prose, not the payload
+                text = jd_extract.extract(text).get("description_text") or ""
+            elif p.suffix.lower() in (".html", ".htm") or head == "<":
                 import jd_extract
                 text = jd_extract.strip_html(text)
             text = "\n".join(ln.strip() for ln in text.splitlines() if ln.strip())

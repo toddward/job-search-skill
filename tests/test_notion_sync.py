@@ -38,3 +38,10 @@ def test_page_content_falls_back_to_description_path(home):
     assert ns.page_content(missing, home).endswith("## Description (excerpt)\n")
     escape = dict(job, description_path="../../etc/passwd")
     assert ns.page_content(escape, home).endswith("## Description (excerpt)\n")
+
+def test_page_content_reads_stored_ats_json_as_prose(home, fixtures):
+    (home / "memory" / "jd").mkdir(parents=True, exist_ok=True)
+    (home / "memory" / "jd" / "gh.json").write_text((fixtures / "jd_greenhouse.json").read_text())
+    job = dict(JOB); job.pop("description_text"); job["description_path"] = "memory/jd/gh.json"
+    body = ns.page_content(job, home)
+    assert "Hybrid, 3 days in Reston." in body and "absolute_url" not in body
