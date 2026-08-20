@@ -4,6 +4,12 @@
 Free text with no recognized leading verb is `scan` with that text as `query`. All flags are
 `--name` or `--name value`; a `--name` not in the value-flag set is boolean.
 
+`--home` in this table is a **script-level** flag, not one `parse_args.py` consumes for its own
+sake — every `scripts/*.py` invocation takes `--home <dir>` as a top-level flag that must
+**precede** the subcommand (`jobs_db.py --home <dir> list`, never `jobs_db.py list --home
+<dir>`). When a turn makes several script calls against the same data home, export
+`JOBSEARCH_HOME=<dir>` once instead of repeating `--home` on each.
+
 | Command | Syntax | Flags | Semantics |
 |---|---|---|---|
 | *(free text)* | `<query text>` | `--home`, `--headless`, `--json`, `--max` | Same as `scan --query "<text>"`. |

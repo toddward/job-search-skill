@@ -4,7 +4,7 @@
       "Read", "Write", "Edit", "Glob", "Grep", "WebSearch", "WebFetch",
       "Bash({{SKILL}}/scripts/*)", "Bash(python3 {{SKILL}}/scripts/*)", "Bash(python3 *)",
       "Bash(mkdir *)", "Bash(cp *)", "Bash(mv *)", "Bash(ls *)", "Bash(cat *)", "Bash(firecrawl *)", "Bash(pdftotext *)",
-      "Bash(git -C {{HOME}}/memory *)",
+      "Bash(git -C {{HOME}} *)",
       "mcp__firecrawl__*", "mcp__playwright__*", "mcp__notion__*"
     ],
     "deny": ["Bash(rm -rf *)", "Bash(git push *)", "AskUserQuestion"]

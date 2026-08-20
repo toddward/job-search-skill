@@ -42,3 +42,19 @@ def test_validate_and_quarantine(home):
 def test_find_prefix(home):
     db = JobsDB(home / "memory" / "jobs.jsonl"); db.upsert(rec(), now="2026-08-19T10:00:00Z")
     assert db.find("b7f3c1")["fingerprint"] == "b7f3c1a9d2e40185" and db.find("zzzzzz") is None
+
+def test_fit_fields_and_snooze_persist_on_reupsert(home):
+    p = home / "memory" / "jobs.jsonl"
+    db = JobsDB(p)
+    r = db.upsert(rec(), now="2026-08-19T10:00:00Z")
+    first_seen, status = r["first_seen"], r["status"]
+    r2 = db.upsert(rec(fit_score=87, fit_breakdown={"must_have": 35.0}, fit_reasons=["x"],
+                        snooze_until="2026-09-01T00:00:00Z"), now="2026-08-19T11:00:00Z")
+    assert r2["fit_score"] == 87 and r2["fit_breakdown"] == {"must_have": 35.0} and r2["fit_reasons"] == ["x"]
+    assert r2["snooze_until"] == "2026-09-01T00:00:00Z"
+    assert r2["first_seen"] == first_seen and r2["status"] == status
+    db.save()
+    reloaded = JobsDB(p).get("b7f3c1a9d2e40185")
+    assert reloaded["fit_score"] == 87 and reloaded["fit_breakdown"] == {"must_have": 35.0}
+    assert reloaded["fit_reasons"] == ["x"] and reloaded["snooze_until"] == "2026-09-01T00:00:00Z"
+    assert reloaded["first_seen"] == first_seen and reloaded["status"] == status

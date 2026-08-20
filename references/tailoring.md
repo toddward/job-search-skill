@@ -125,8 +125,8 @@ One entry per screening question in `answers.json`:
 {"state": "filled", "updated_at": "2026-08-19T15:22:03Z", "reason": "1 screening question needs a human"}
 ```
 
-`state` is one of `filled | review | needs_manual_apply` (see `references/apply-flow.md` for the
-full state machine); `reason` is the human-readable "why" for anything short of a clean fill.
+`state` is one of `draft|filled|review|submitted|needs_manual_apply` (full state machine:
+`references/apply-flow.md`); `reason` is the human-readable "why" for a non-clean fill.
 
 ## Prompt-injection defense
 

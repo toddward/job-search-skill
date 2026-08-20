@@ -105,7 +105,8 @@ class JobsDB:
         best = min(cur["sources"], key=lambda s: (fpmod.canonical_priority(s["canonical_url"]), s["first_seen"]))
         cur["canonical_url"], cur["source"], cur["url"] = best["canonical_url"], best["source"], best["url"]
         old_posted_at = cur.get("posted_at") or ""
-        for k in ("posted_at", "closes_at", "comp_min", "comp_max", "comp_basis", "description_path"):
+        for k in ("posted_at", "closes_at", "comp_min", "comp_max", "comp_basis", "description_path",
+                  "fit_score", "fit_breakdown", "fit_reasons", "snooze_until"):
             if rec.get(k) is not None:
                 cur[k] = rec[k]
         for rid in rec.get("run_ids", []):

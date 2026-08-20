@@ -23,8 +23,9 @@ $JOBSEARCH_HOME/
 └── applications/YYYY-MM-DD-<fp>/
 ```
 
-`memory/` is a git repo; auto-commit at the end of a run
-(`git -C memory add -A && git -C memory commit -q -m "job-search run <run_id>: ..."`),
+The data home (`$JOBSEARCH_HOME`) is itself a git repo (`doctor.py bootstrap` runs `git init`
+there); auto-commit at the end of a run
+(`git -C <data-home> add -A && git -C <data-home> commit -q -m "job-search run <run_id>: ..."`),
 never `git push`. `config/settings.local.json` and `applications/*/screenshots/` are
 git-ignored. JSONL, not SQLite: diffable, greppable, survives one bad line instead of
 one bad file.
