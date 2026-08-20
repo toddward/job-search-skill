@@ -12,11 +12,11 @@ sake — every `scripts/*.py` invocation takes `--home <dir>` as a top-level fla
 
 | Command | Syntax | Flags | Semantics |
 |---|---|---|---|
-| *(free text)* | `<query text>` | `--home`, `--headless`, `--json`, `--max` | Same as `scan --query "<text>"`. |
-| `scan` | `scan [query]` | `--query`, `--home`, `--headless`, `--json`, `--max` | Crawl boards, score, rank, write a report (§2 of `SKILL.md`). |
+| *(free text)* | `<query text>` | `--home`, `--headless`, `--json` | Same as `scan --query "<text>"`. |
+| `scan` | `scan [query]` | `--query`, `--home`, `--headless`, `--json` | Crawl boards, score, rank, write a report (§2 of `SKILL.md`). |
 | `setup` | `setup` | `--home` | Bootstrap config/dirs, register Firecrawl MCP, print `doctor.py` table. |
-| `pick` | `pick N[,N…]` | `--note`, `--apply`, `--no-tailor`, `--from`, `--run`, `--home` | Resolve numbers to jobs, tailor résumé/cover letter/diff, stop before filling unless `--apply`. |
-| `apply` | `apply N[,N…]` \| `apply <url>` | `--note`, `--no-tailor`, `--from`, `--run`, `--home` | Same as `pick`, then continues into §4 (Playwright fill; never submits without the guard). A bare URL is scored and treated as one pick. |
+| `pick` | `pick N[,N…]` | `--note`, `--apply`, `--no-apply`, `--no-tailor`, `--from`, `--run`, `--home` | Resolve numbers to jobs, tailor résumé/cover letter/diff, stop before filling unless `--apply`. |
+| `apply` | `apply N[,N…]` \| `apply <url>` | `--note`, `--no-apply`, `--no-tailor`, `--from`, `--run`, `--home` | Same as `pick`, then continues into §4 (Playwright fill; never submits without the guard). A bare URL is scored and treated as one pick. |
 | `no` | `no N "reason"` | `--reason` | Mark `not_interested`, call `disinterest.py learn`, show what was learned. No reason (headless) ⇒ status set, no rule. |
 | `snooze` | `snooze N <duration>` | — | Hide job N until `<duration>` elapses (e.g. `30d`); no learning. |
 | `show` | `show N` | — | Print the JD, fit breakdown, and `diff.md` if an application dir exists. |

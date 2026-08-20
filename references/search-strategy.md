@@ -14,7 +14,7 @@ governs how the agent uses the rendered targets.
 | 3 | `mcp__firecrawl__firecrawl_scrape` | Known listing URL, public HTML. One listing page, then scrape up to `search.detail_pages_per_board` detail URLs per board for JD text + apply URL + posted date. |
 | 4 | `mcp__firecrawl__firecrawl_extract` | SPA filters `scrape` missed (Eightfold, Phenom, keyword boxes). Schema-extract `{title, company, location, posted, apply_url, req_id, salary}`, don't dump markdown. |
 | 5 | `WebSearch` / `WebFetch` (built-in) | One-off lookups (current HN thread id, "does this board still exist"). Not a ranked-list source. |
-| 6 | `mcp__playwright__browser_navigate` + `mcp__playwright__browser_snapshot` | Boards behind Cloudflare/Akamai walls or requiring a login (Indeed, Glassdoor, ZipRecruiter, Eightfold, Phenom-if-challenged, apply flows, Easy Apply). Discovery should not start here; apply almost always ends here. Persistent profile at `$JOB_SEARCH_HOME/config/browser-profile`. |
+| 6 | `mcp__playwright__browser_navigate` + `mcp__playwright__browser_snapshot` | Boards behind Cloudflare/Akamai walls or requiring a login (Indeed, Glassdoor, ZipRecruiter, Eightfold, Phenom-if-challenged, apply flows, Easy Apply). Discovery should not start here; apply almost always ends here. Persistent profile at `$JOBSEARCH_HOME/config/browser-profile`. |
 
 **Bash fallback:** if the Firecrawl MCP server is not connected, use the `firecrawl` skill's
 CLI (`firecrawl search "..."`, `firecrawl scrape <url>`) via Bash instead of the MCP tools above.
@@ -57,28 +57,28 @@ Always run a second **remote-US** pass in addition to the local-radius pass; man
 
 ## Dedup
 
-**Fingerprint** (durable memory key, Python stdlib only — never shell `shasum`/`sha256sum`):
+**Fingerprint** (durable memory key): never compute it here — call
+`scripts/fingerprint.py`, which is the single authority. `fingerprint(company, title,
+location, remote)` returns the **first 16 hex characters** of a SHA-256 over the three
+normalized keys joined by `\x1f`; no requisition id takes part, so the same posting keeps one
+identity across boards that expose different ids.
 
-```python
-import hashlib
-fingerprint = hashlib.sha256(
-    f"{company_norm}|{title_norm}|{loc_norm}|{req_id_or_empty}".encode("utf-8")
-).hexdigest()
-```
+- `company_key`: lowercase, accent-folded; strips legal suffixes (`inc|llc|ltd|corp|co|the|
+  group|…`); maps aliases (`booz allen hamilton`→`booz allen`, `amazon web services`→`amazon`,
+  `google llc`→`google`).
+- `title_key`: lowercase, collapse whitespace, strip `(remote)`/req-number noise, expand
+  `sr`→`senior`, `eng`→`engineer`, `swe`→`software engineer`; seniority words are kept
+  (`senior` ≠ `staff` — different jobs).
+- `location_key`: `city-st` or `remote-us`/`remote-<qualifier>`; DC variants normalize to
+  `washington-dc`. Tysons stays distinct from McLean even though it is the same commute.
+- The per-board posting identity is separate: `posting_id(url)` = sha256 of the canonical URL,
+  stored per entry in `sources[]`.
 
-- `company_norm`: lowercase; strip `inc|llc|ltd|corp|corporation|the|group|co.`; map aliases
-  (`booz allen hamilton`→`booz allen`, `amazon web services`→`amazon`, `google llc`→`google`).
-- `title_norm`: lowercase, collapse whitespace, strip requisition suffixes like `(R0…)`; keep
-  seniority words (`senior` ≠ `staff` — different jobs).
-- `loc_norm`: `city, ST` or `remote-us`. Normalize DC variants to `washington, dc`. Keep
-  Tysons distinct from McLean in the fingerprint even though they're the same commute radius.
-- `req_id`: Greenhouse id, Ashby uuid, Workday req, USAJOBS `MatchedObjectId`, Dice uuid,
-  LinkedIn numeric id. `req_id + company` alone is sufficient even if the title changed.
+**Secondary match:** same `company_key` + `location_key` and
+`fingerprint.titles_similar(a, b)` (`SequenceMatcher` ratio ≥ 0.90 over the title keys),
+first seen within 90 days — for near-identical titles that hash to different fingerprints.
 
-**Secondary match:** same `company_norm` + `title_norm` + `loc_norm`, Jaccard(title tokens)
-≥ 0.8, first seen within 90 days, even without a `req_id`.
-
-**Canonical apply URL** (keep this one; store the rest in `source_urls[]`):
+**Canonical apply URL** (keep this one; store every board's URL in `sources[]`):
 
 1. Company ATS host (`job-boards.greenhouse.io`, `jobs.ashbyhq.com`, `jobs.lever.co`,
    `*.myworkdayjobs.com`, `amazon.jobs/.../jobs/`, `careers.microsoft.com`,
@@ -100,8 +100,9 @@ through different vendors) keep separate fingerprints — the vendor is who you 
 
 Trust order for posted date: USAJOBS/Greenhouse/Ashby/Lever/RemoteOK JSON fields (high) >
 site card text with an explicit date (high, e.g. Capital One `08/18/2026`) > relative text
-("4 hours ago", "13d ago" — medium, parse to an estimate and store `date_precision=relative`)
-> no date at all (low — set `posted_at=null`, `first_seen=now`, rank below dated postings).
+("4 hours ago", "13d ago" — medium, parse to an estimate) > no date at all (low — set
+`posted_at=null`, `first_seen=now`, rank below dated postings). `posted_at`/`closes_at` are
+stored as bare `YYYY-MM-DD` (`jobs_db.upsert` truncates anything longer).
 
 **Expire** a posting (`status=expired`) when: HTTP 404/410 on the canonical URL; page text
 matches `/no longer (accepting|available)|this job has expired|position (has been )?filled|
@@ -109,10 +110,11 @@ requisition closed/i`; USAJOBS `ApplicationCloseDate` < now; or an ATS JSON boar
 for 7 consecutive days (`missing` first, then expire). Do not expire solely because LinkedIn
 shows a stale relative date — recheck the canonical URL first.
 
-**Repost:** same fingerprint, new `posted_at` after a gap, or an explicit "Reposted" label.
-Keep one memory row, bump `repost_count`, update `last_posted_at`/`last_seen`. A repost of a
-job the user marked `not_interested` stays suppressed. A genuine new `req_id` with a similar
-title after a cooldown *is* a new job.
+**Repost:** same fingerprint, a changed `content_hash`, and a newer `posted_at`. Keep one
+memory row; `jobs_db.upsert` bumps `version`, resets the row to `new`, clears `last_shown`,
+and updates `last_seen`. A repost of a job the user marked `not_interested` stays suppressed
+(status is preserved across upserts). A materially different title after a cooldown hashes to a
+different fingerprint and *is* a new job.
 
 ## Caps (per run)
 
@@ -120,5 +122,6 @@ title after a cooldown *is* a new job.
 - Per-board wall-clock budget: `search.board_timeout_seconds` (default 90s). Abort the board
   and move on if exceeded.
 - **Record every board failure with a reason** (timeout, bot-wall, HTTP error, empty result,
-  parse error) as an entry in `memory/logs/runs.jsonl` — never fail the whole run silently
+  parse error) in the run's `boards_failed[]`, which `report.py write` appends to
+  `memory/runs.jsonl` (and prints in the report header) — never fail the whole run silently
   because one board errored.

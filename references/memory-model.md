@@ -26,8 +26,11 @@ $JOBSEARCH_HOME/
 The data home (`$JOBSEARCH_HOME`) is itself a git repo (`doctor.py bootstrap` runs `git init`
 there); auto-commit at the end of a run
 (`git -C <data-home> add -A && git -C <data-home> commit -q -m "job-search run <run_id>: ..."`),
-never `git push`. `config/settings.local.json` and `applications/*/screenshots/` are
-git-ignored. JSONL, not SQLite: diffable, greppable, survives one bad line instead of
+never `git push`. `doctor.py bootstrap` writes the `.gitignore`: `config/browser-profile/`,
+`config/settings.local.json`, `memory/.run.lock/`, `memory/.submits-*`, `*.lock`,
+`applications/_artifacts/`, `applications/*/evidence/`, and `applications/*/screenshots/` —
+i.e. secrets, browser state, run locks, and the PII-bearing application evidence never enter
+the repo. JSONL, not SQLite: diffable, greppable, survives one bad line instead of
 one bad file.
 
 ## `memory/jobs.jsonl`

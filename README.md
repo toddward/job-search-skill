@@ -69,7 +69,9 @@ get exact per-OS fix commands for whatever's missing.
 ```
 Bootstraps `config/`, registers the Firecrawl MCP, and tells you what's still missing — usually
 just dropping a resume (PDF/Markdown/text) into `resume/`, or pointing `scoring.resume_url` at a
-hosted one, then editing `config/profile.md` and `config/cover-letter-style.md`.
+hosted one, then editing `config/profile.md` and `config/cover-letter-style.md`. Every scan
+regenerates `resume/master.md` from that source document, so keep editing the source — a
+hand-edit to `master.md` is overwritten the next time the source changes.
 
 ```
 /job-search AI jobs in Reston, VA
@@ -129,7 +131,7 @@ Kept separate from this repo so a public checkout of the skill never carries you
 
 ```text
 $JOBSEARCH_HOME/
-├── resume/              # master.md (the one hand-curated authority) + raw captures
+├── resume/              # your resume (PDF/MD/DOCX) + master.md, generated from it
 ├── config/               # settings.toml (committed), profile.md, cover-letter-style.md, browser-profile/
 ├── memory/               # jobs.jsonl, disinterest.json, runs.jsonl — its own git repo, auto-committed, never pushed
 ├── reports/YYYY-MM-DD.md

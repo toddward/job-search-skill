@@ -312,7 +312,7 @@ Permission rules are matched literally — they do **not** expand `$HOME` or `~`
       "Grep",
       "WebSearch",
       "WebFetch",
-      "Bash(/Users/toddwardzinski/.claude/skills/job-search/scripts/*)",
+      "Bash(~/.claude/skills/job-search/scripts/*)",
       "Bash(python3 *)",
       "Bash(mkdir *)",
       "Bash(cp *)",
@@ -367,8 +367,8 @@ Also generated, because `--user-data-dir` and `--output-dir` need absolute paths
       "args": [
         "@playwright/mcp@latest",
         "--browser", "chrome",
-        "--user-data-dir", "/Users/toddwardzinski/development/random/job-search/config/browser-profile",
-        "--output-dir", "/Users/toddwardzinski/development/random/job-search/applications/_artifacts",
+        "--user-data-dir", "~/development/random/job-search/config/browser-profile",
+        "--output-dir", "~/development/random/job-search/applications/_artifacts",
         "--save-session"
       ],
       "timeout": 600000
@@ -525,9 +525,9 @@ Six mechanisms, all cheap and all platform-neutral:
 ```crontab
 SHELL=/bin/sh
 # macOS (Apple silicon Homebrew). On Intel macOS use /usr/local/bin instead of /opt/homebrew/bin.
-PATH=/Users/toddwardzinski/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin
+PATH=~/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin
 MAILTO=""
-30 6 * * 1-5 /Users/toddwardzinski/.claude/skills/job-search/scripts/run_headless.py scan >> /Users/toddwardzinski/development/random/job-search/memory/logs/cron.log 2>&1 < /dev/null
+30 6 * * 1-5 ~/.claude/skills/job-search/scripts/run_headless.py scan >> ~/development/random/job-search/memory/logs/cron.log 2>&1 < /dev/null
 ```
 
 ```crontab
@@ -556,17 +556,17 @@ Two platform caveats:
   <string>com.example.job-search</string>
   <key>ProgramArguments</key>
   <array>
-    <string>/Users/toddwardzinski/.claude/skills/job-search/scripts/run_headless.py</string>
+    <string>~/.claude/skills/job-search/scripts/run_headless.py</string>
     <string>scan</string>
   </array>
   <key>WorkingDirectory</key>
-  <string>/Users/toddwardzinski/development/random/job-search</string>
+  <string>~/development/random/job-search</string>
   <key>EnvironmentVariables</key>
   <dict>
     <key>PATH</key>
-    <string>/Users/toddwardzinski/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+    <string>~/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
     <key>HOME</key>
-    <string>/Users/toddwardzinski</string>
+    <string>~</string>
     <key>MCP_TIMEOUT</key>
     <string>60000</string>
   </dict>
@@ -581,9 +581,9 @@ Two platform caveats:
   <key>RunAtLoad</key>
   <false/>
   <key>StandardOutPath</key>
-  <string>/Users/toddwardzinski/development/random/job-search/memory/logs/launchd.out.log</string>
+  <string>~/development/random/job-search/memory/logs/launchd.out.log</string>
   <key>StandardErrorPath</key>
-  <string>/Users/toddwardzinski/development/random/job-search/memory/logs/launchd.err.log</string>
+  <string>~/development/random/job-search/memory/logs/launchd.err.log</string>
   <key>ProcessType</key>
   <string>Background</string>
 </dict>
@@ -1297,7 +1297,7 @@ host:
   os: macos                          # macos | linux
   arch: arm64
   python: "/opt/homebrew/bin/python3"
-  claude_bin: "/Users/toddwardzinski/.local/bin/claude"
+  claude_bin: "~/.local/bin/claude"
   chrome_path: "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
   chrome_kind: chrome                # chrome | chromium | playwright-bundled
   pdftotext: "/opt/homebrew/bin/pdftotext"
