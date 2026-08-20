@@ -39,26 +39,45 @@ posting gets a new version but keeps the original fingerprint link.
 
 ## Launching the browser (Playwright MCP)
 
-Headed by default, one dedicated persistent profile, never the user's everyday Chrome:
+Headed by default, one dedicated persistent profile, never the user's everyday Chrome.
+**The fill process must not own the Chrome process.** A child Chrome dies when the
+fill script or MCP session ends, which is exactly when the user needs the filled
+form still on screen.
 
-```sh
-npx -y @playwright/mcp@latest \
-  --browser=chrome \
-  --user-data-dir="$JOBSEARCH_HOME/config/browser-profile" \
-  --output-dir="$JOBSEARCH_HOME/applications/_artifacts" \
-  --save-session
-```
+1. `python3 ${CLAUDE_SKILL_DIR}/scripts/chrome_keep.py ensure` → `{endpoint, launched}`.
+   It reuses `apply.cdp_endpoint` if that port is already up, otherwise starts Chrome
+   on port 9223 with `--user-data-dir=$JOBSEARCH_HOME/config/browser-profile`,
+   `--remote-debugging-port`, and `start_new_session=True` so a wrapper timeout cannot
+   take Chrome down.
+2. Attach Playwright (MCP or Python) over CDP. Never
+   `launch_persistent_context` / `browser.launch` as a child of the fill process.
+   ```sh
+   npx -y @playwright/mcp@latest \
+     --browser=chrome \
+     --cdp-endpoint <endpoint from chrome_keep> \
+     --output-dir="$JOBSEARCH_HOME/applications/_artifacts" \
+     --save-session
+   ```
+3. One new tab per application (`browser_tabs new` / `context.new_page`). Never reuse
+   a snapshot ref across a navigation, SPA rerender, or file-parse event — re-snapshot
+   instead.
 
-- **`--cdp-endpoint`** attaches to an already-running Chrome started with
-  `--remote-debugging-port` instead of launching a new one — use it when the user
-  wants to drive their own logged-in browser (`apply.cdp_endpoint` in config).
+**After fill, never close the headed browser.** No `browser.close()`, no
+`browser_close`, no killing the Chrome PID, no letting a `with sync_playwright()`
+block call `close()` on a browser it launched. Disconnect Playwright if you must;
+leave the tab on the filled form so the user can verify and click Submit. Tell them
+the window is still up. `auto_submit=false` (the default) makes this the normal
+stop: the form is filled, the guard denies submit, the tab stays.
+
 - **Headless only** when `JOBSEARCH_BROWSER_MODE=headless` is set (a headless Linux
   host): `config.load()` applies that env override as `apply.browser_mode =
   "headless"`, so read the mode off the loaded config rather than the environment. In that mode every headed-only ATS (Workday, Taleo, iCIMS, anything with
   login/MFA) is downgraded straight to `needs_manual_apply` with
-  `reason_code: headed_session_required` — headless never attempts login-walled fill.
-- One tab per application via `browser_tabs`; never reuse a snapshot ref across a
-  navigation, SPA rerender, or file-parse event — re-snapshot instead.
+  `reason_code: headed_session_required` — headless never attempts login-walled fill
+  and never calls `chrome_keep.py` (it is headed-only).
+- `apply.cdp_endpoint` (e.g. `http://localhost:9223`) still attaches to a Chrome the
+  user already started; `chrome_keep.py` will not spawn a second one if that port is
+  live. Never close that Chrome either.
 
 ## Fill procedure
 
