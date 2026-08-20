@@ -26,6 +26,17 @@ auto-apply flow, driven from `/job-search` inside Claude Code.
 
 ## Install
 
+As a plugin, from this repo's marketplace (`.claude-plugin/marketplace.json`) — the route to use
+when adding the skill to a harness or sharing it with a team:
+
+```sh
+claude plugin marketplace add toddward/job-search-skill
+claude plugin install job-search@job-search-skill
+```
+
+`claude plugin marketplace add` also accepts a local checkout path, which is handy while
+developing. Or install it as a plain skill directory:
+
 ```sh
 git clone https://github.com/toddward/job-search-skill ~/.claude/skills/job-search
 ```
@@ -35,6 +46,9 @@ Or symlink an existing checkout:
 ```sh
 ln -s /path/to/job-search-skill ~/.claude/skills/job-search
 ```
+
+Either way the skill is the repo root: `.claude-plugin/plugin.json` declares `"skills": ["./"]`,
+so `SKILL.md`, `scripts/`, `references/`, and `assets/` are the same files in both layouts.
 
 Contributors — enable the pre-commit hook that blocks personal data (resume, profile, browser
 profile, memory, applications) from ever being committed to this repo:

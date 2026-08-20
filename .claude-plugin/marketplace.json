@@ -1,0 +1,27 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "job-search-skill",
+  "description": "Marketplace for the job-search skill: resume-aware job discovery, deterministic ranking, tailored applications, and guarded auto-apply.",
+  "owner": {
+    "name": "Todd Wardzinski"
+  },
+  "plugins": [
+    {
+      "name": "job-search",
+      "description": "Search job boards for roles matching your resume, stack-rank them with a deterministic fit score, remember what was seen/dismissed/applied, tailor a resume + cover letter per job, and fill applications via Playwright MCP behind a submit guard.",
+      "author": {
+        "name": "Todd Wardzinski"
+      },
+      "category": "productivity",
+      "source": "./",
+      "homepage": "https://github.com/toddward/job-search-skill",
+      "license": "MIT",
+      "keywords": [
+        "job-search",
+        "resume",
+        "cover-letter",
+        "ats"
+      ]
+    }
+  ]
+}

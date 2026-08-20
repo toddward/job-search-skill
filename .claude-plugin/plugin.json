@@ -1,0 +1,23 @@
+{
+  "$schema": "https://anthropic.com/claude-code/plugin.schema.json",
+  "name": "job-search",
+  "version": "0.1.0",
+  "description": "Resume-aware job discovery, deterministic fit scoring and ranking, per-job resume + cover letter tailoring (Markdown + PDF), and a guarded Playwright auto-apply flow that never submits without an explicit flag and a deterministic guard.",
+  "author": {
+    "name": "Todd Wardzinski"
+  },
+  "homepage": "https://github.com/toddward/job-search-skill",
+  "repository": "https://github.com/toddward/job-search-skill",
+  "license": "MIT",
+  "keywords": [
+    "job-search",
+    "resume",
+    "cover-letter",
+    "ats",
+    "playwright",
+    "notion"
+  ],
+  "skills": [
+    "./"
+  ]
+}
