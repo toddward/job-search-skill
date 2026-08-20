@@ -69,7 +69,10 @@ def bootstrap(home: Path, force: bool = False) -> list[str]:
 def _firecrawl_key() -> str | None:
     k = os.environ.get("FIRECRAWL_API_KEY")
     if k: return k
-    cands = [Path.home() / "Library/Application Support/firecrawl-cli/config.json", Path.home() / ".config/firecrawl-cli/config.json"]
+    cands = [Path.home() / "Library/Application Support/firecrawl-cli/credentials.json",
+             Path.home() / "Library/Application Support/firecrawl-cli/config.json",
+             Path.home() / ".config/firecrawl-cli/credentials.json",
+             Path.home() / ".config/firecrawl-cli/config.json"]
     for c in cands:
         d = common.read_json(c, {}) or {}
         for key in ("apiKey", "api_key", "FIRECRAWL_API_KEY"):

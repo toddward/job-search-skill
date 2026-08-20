@@ -1,4 +1,5 @@
 import json, os, subprocess, sys, doctor, runtime_probe, common
+from pathlib import Path
 
 def test_probe_modes(monkeypatch):
     monkeypatch.setenv("CLAUDE_CODE_ENTRYPOINT", "cli"); assert runtime_probe.probe()["mode"] == "interactive"
@@ -24,6 +25,15 @@ def test_bootstrap_creates_config(home):
     assert common.POINTER.read_text().strip() == str(home)
     (home / "config" / "settings.toml").write_text("# edited\n")
     doctor.bootstrap(home); assert (home / "config" / "settings.toml").read_text() == "# edited\n"
+
+def test_firecrawl_key_reads_credentials_json(tmp_path, monkeypatch):
+    monkeypatch.delenv("FIRECRAWL_API_KEY", raising=False)
+    monkeypatch.setattr(Path, "home", lambda: tmp_path)
+    assert doctor._firecrawl_key() is None  # no files, no env -> None
+    cred_dir = tmp_path / "Library" / "Application Support" / "firecrawl-cli"
+    cred_dir.mkdir(parents=True)
+    (cred_dir / "credentials.json").write_text(json.dumps({"apiKey": "fc-test"}))
+    assert doctor._firecrawl_key() == "fc-test"
 
 def test_check_reports_structure(home):
     import config
