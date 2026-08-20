@@ -34,6 +34,19 @@ requirement the candidate cannot satisfy triggers the cap. Other signals worth a
 without capping: unpaid/equity-only, "rockstar/ninja" language, an email-only apply flow, a
 `validThrough` date already past.
 
+## What gets scored (the input contract)
+
+`covered()` matches **terms**, not sentences, so `fit_score.score()` reads
+`job["must_have_terms"]` / `job["nice_to_have_terms"]` — the term lists
+`jd_extract.terms_from_bullets()` harvests out of the bullet prose (`must_have` /
+`nice_to_have` remain in the output for humans, and are the fallback when no term list is
+present). Feeding whole bullets ("Have 8+ years designing ML platforms on Kubernetes") to the
+scorer would score 0 coverage and report covered skills as missing.
+
+Two fields the extract output does not carry come from the stored row: pass
+`fit_score.py --row <jobs_db record>` to merge `location_key` and `remote`, or the location
+component sits at the "unknown" 0.5 ratio forever.
+
 ## Synonym equivalence groups
 
 Coverage for `must_have` / `nice_to_have` uses `SYN_GROUPS`: symmetric **equivalence groups**, not
