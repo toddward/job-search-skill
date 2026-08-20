@@ -18,9 +18,11 @@ def probe() -> dict:
     forced = os.environ.get("JOBSEARCH_FORCE_MODE")
     if forced in ("interactive", "headless"):
         mode = forced
+    home, source = common.data_home_info()
     return {"mode": mode, "entrypoint": entry, "os": common.host_os(), "tty": sys.stdin.isatty() and sys.stdout.isatty(),
-            "home": str(common.data_home()), "python": sys.version.split()[0]}
+            "home": str(home), "home_source": source, "python": sys.version.split()[0]}
 
 if __name__ == "__main__":
     p = probe()
-    print(f"mode={p['mode']} entrypoint={_safe(p['entrypoint'])} os={p['os']} home={_safe(p['home'])} python={_safe(p['python'])}")
+    print(f"mode={p['mode']} entrypoint={_safe(p['entrypoint'])} os={p['os']} home={_safe(p['home'])} "
+          f"home_source={p['home_source']} python={_safe(p['python'])}")

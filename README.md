@@ -126,7 +126,18 @@ tokenizer bug, the `$`-in-injection abort, idempotence, headless-Linux browser d
 
 ## Data home
 
-Resolved in order: `--home` → `$JOBSEARCH_HOME` → `~/.config/job-search/home` → `~/job-search`.
+The skill directory itself is stateless — it can be deleted, re-downloaded, or updated at any
+time without losing anything. Your state lives in a **data home**, resolved in order:
+
+1. `--home <dir>` on any script call
+2. `$JOBSEARCH_HOME`
+3. the pointer file `$XDG_CONFIG_HOME/job-search/home` (default `~/.config/job-search/home`) —
+   one line naming your chosen directory, written by `doctor.py bootstrap` on first setup
+4. `~/job-search`
+
+On a fresh install, `/job-search setup` announces where the data home will be created and asks
+before defaulting to `~/job-search`; scripts print the resolved home and its source
+(`doctor.py` shows `<path> (via pointer)` etc.), so where state lives is never a surprise.
 Kept separate from this repo so a public checkout of the skill never carries your personal data.
 
 ```text

@@ -12,6 +12,25 @@ def test_data_home_resolution(tmp_path, monkeypatch):
     assert common.data_home() == tmp_path / "env"
     assert common.data_home(str(tmp_path / "arg")) == tmp_path / "arg"
 
+def test_pointer_path_honors_xdg_config_home(tmp_path, monkeypatch):
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "xdg"))
+    assert common.pointer_path() == tmp_path / "xdg" / "job-search" / "home"
+    monkeypatch.setenv("XDG_CONFIG_HOME", "relative/ignored")  # XDG spec: non-absolute values are ignored
+    assert common.pointer_path() == pathlib.Path.home() / ".config" / "job-search" / "home"
+    monkeypatch.delenv("XDG_CONFIG_HOME")
+    assert common.pointer_path() == pathlib.Path.home() / ".config" / "job-search" / "home"
+
+def test_data_home_info_reports_source(tmp_path, monkeypatch):
+    monkeypatch.delenv("JOBSEARCH_HOME", raising=False)
+    monkeypatch.setattr(common, "POINTER", tmp_path / "pointer")
+    monkeypatch.setattr(common, "DEFAULT_HOME", tmp_path / "default")
+    assert common.data_home_info() == (tmp_path / "default", "default")
+    (tmp_path / "pointer").write_text(str(tmp_path / "ptr") + "\n")
+    assert common.data_home_info() == (tmp_path / "ptr", "pointer")
+    monkeypatch.setenv("JOBSEARCH_HOME", str(tmp_path / "env"))
+    assert common.data_home_info() == (tmp_path / "env", "env")
+    assert common.data_home_info(str(tmp_path / "arg")) == (tmp_path / "arg", "cli")
+
 def test_time_helpers():
     assert common.utcnow().endswith("Z") and len(common.utcnow()) == 20
     assert abs(common.days_between("2026-08-05T10:33:00Z", "2026-08-19T10:33:00Z") - 14.0) < 1e-9

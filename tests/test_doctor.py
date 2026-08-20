@@ -15,6 +15,19 @@ def test_probe_sanitizes_dollar_in_home(monkeypatch):
     out = subprocess.run([sys.executable, str(common.SKILL_DIR / "scripts" / "runtime_probe.py")], capture_output=True, text=True, env=env).stdout
     assert "$" not in out and "`" not in out and "mode=interactive" in out and "<unsafe-path>" in out
 
+def test_probe_reports_home_source(home, monkeypatch):
+    monkeypatch.setenv("CLAUDE_CODE_ENTRYPOINT", "cli")
+    assert runtime_probe.probe()["home_source"] == "env"  # `home` fixture sets JOBSEARCH_HOME
+    out = subprocess.run([sys.executable, str(common.SKILL_DIR / "scripts" / "runtime_probe.py")], capture_output=True, text=True).stdout
+    assert " home_source=" in out
+
+def test_check_data_home_detail_includes_source(home):
+    import config
+    doctor.bootstrap(home)
+    r = doctor.check(home, config.load(home), quick=True, source="env")
+    row = next(c for c in r["checks"] if c["name"] == "data_home")
+    assert "(via env)" in row["detail"]
+
 def test_bootstrap_creates_config(home):
     msgs = doctor.bootstrap(home)
     for f in ["settings.toml", "profile.md", "cover-letter-style.md", "job-board-links.md", "headless.settings.json", "mcp.headless.json"]:

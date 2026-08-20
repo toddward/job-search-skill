@@ -7,23 +7,33 @@ from pathlib import Path
 
 SKILL_DIR = Path(__file__).resolve().parents[1]
 DEFAULT_HOME = Path.home() / "job-search"
-POINTER = Path.home() / ".config" / "job-search" / "home"
+
+def pointer_path() -> Path:
+    xdg = os.environ.get("XDG_CONFIG_HOME", "")
+    base = Path(xdg) if xdg and os.path.isabs(xdg) else Path.home() / ".config"
+    return base / "job-search" / "home"
+
+POINTER = pointer_path()
 DATA_SUBDIRS = ["resume", "config", "memory", "memory/jd", "memory/logs", "memory/runs",
                 "memory/ats-learned", "reports", "applications"]
 
-def data_home(override: str | None = None) -> Path:
+def data_home_info(override: str | None = None) -> tuple[Path, str]:
+    """Resolve the data home and how it was chosen: cli | env | pointer | default."""
     if override:
-        return Path(override).expanduser().resolve()
+        return Path(override).expanduser().resolve(), "cli"
     env = os.environ.get("JOBSEARCH_HOME")
     if env:
-        return Path(env).expanduser().resolve()
+        return Path(env).expanduser().resolve(), "env"
     try:
         txt = POINTER.read_text().strip()
         if txt:
-            return Path(txt).expanduser().resolve()
+            return Path(txt).expanduser().resolve(), "pointer"
     except OSError:
         pass
-    return DEFAULT_HOME
+    return DEFAULT_HOME, "default"
+
+def data_home(override: str | None = None) -> Path:
+    return data_home_info(override)[0]
 
 def ensure_dirs(home: Path) -> None:
     for d in DATA_SUBDIRS:

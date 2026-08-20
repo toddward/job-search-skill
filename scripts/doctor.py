@@ -18,11 +18,12 @@ def _run(cmd, timeout=20):
     except (OSError, subprocess.TimeoutExpired) as e:
         return 127, str(e)
 
-def check(home: Path, cfg: dict, quick: bool = False) -> dict:
+def check(home: Path, cfg: dict, quick: bool = False, source: str | None = None) -> dict:
     hints = HINTS.get(common.host_os(), HINTS["other"]); C = []
     def add(name, ok, detail, fix=""): C.append({"name": name, "ok": bool(ok), "detail": detail, "fix": fix})
     add("python", sys.version_info >= (3, 11), sys.version.split()[0], "install Python 3.11+")
-    add("data_home", os.access(home, os.W_OK), str(home), "set JOBSEARCH_HOME or run: doctor.py bootstrap")
+    add("data_home", os.access(home, os.W_OK), str(home) + (f" (via {source})" if source else ""),
+        "set JOBSEARCH_HOME or run: doctor.py bootstrap")
     add("resume", not resume_ingest.needs_resume(home, cfg), str(resume_ingest.find_resume(home, cfg["scoring"]) or cfg["scoring"].get("resume_url") or "missing"),
         f"put resume.pdf/.md/.txt in {home/'resume'} or set scoring.resume_url")
     add("settings", (home / "config" / "settings.toml").exists(), "config/settings.toml", "doctor.py bootstrap")
@@ -96,12 +97,12 @@ def main(argv=None):
     b = sub.add_parser("bootstrap"); b.add_argument("--force", action="store_true")
     sub.add_parser("register-firecrawl-mcp")
     a = ap.parse_args(argv)
-    home = common.data_home(a.home)
+    home, source = common.data_home_info(a.home)
     if a.cmd == "bootstrap":
         print("\n".join(bootstrap(home, a.force) or ["nothing to do"])); return
     if a.cmd == "register-firecrawl-mcp":
         print(register_firecrawl_mcp()); return
-    r = check(home, config.load(home), quick=a.quick)
+    r = check(home, config.load(home), quick=a.quick, source=source)
     if a.json: print(json.dumps(r, indent=2)); return
     for c in r["checks"]:
         print(f"[{'ok' if c['ok'] else '!!'}] {c['name']:<15} {c['detail']}" + ("" if c["ok"] else f"   → {c['fix']}"))

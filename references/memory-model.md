@@ -1,8 +1,11 @@
 # Memory model
 
 Everything the skill remembers lives under `$JOBSEARCH_HOME` (`common.data_home()`),
-resolved from `--home`, then `$JOBSEARCH_HOME`, then `~/.config/job-search/home`, then
-`~/job-search`. **Rules are evaluated by scripts, never by the model** — `jobs_db.py`,
+resolved from `--home`, then `$JOBSEARCH_HOME`, then the pointer file
+`$XDG_CONFIG_HOME/job-search/home` (default `~/.config/job-search/home`), then
+`~/job-search`. `common.data_home_info()` also returns which of the four won
+(`cli`/`env`/`pointer`/`default`); `runtime_probe.py` surfaces it as `home_source=` so the
+agent can announce where state lives. **Rules are evaluated by scripts, never by the model** — `jobs_db.py`,
 `rank.py`, and `disinterest.py` are the only code paths allowed to decide eligibility,
 cooldown, or suppression. The agent reads their output; it does not re-derive it.
 
