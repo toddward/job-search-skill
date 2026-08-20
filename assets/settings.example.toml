@@ -5,12 +5,13 @@ schema_version = 1
 query = "AI engineer OR machine learning engineer OR AI architect"
 default_location = "Reston, VA"
 radius_miles = 25
-remote_preference = "prefer"      # require | prefer | allow | exclude
 min_results = 10
 max_results = 12
-max_age_days = 30
+max_age_days = 30                 # a new/shown posting older than this is not listed
 boards_file = "config/job-board-links.md"
+board_timeout_seconds = 90        # per-board wall-clock budget during a crawl
 strategy_order = ["webfetch", "firecrawl", "playwright"]
+detail_pages_per_board = 30       # cap on detail-page fetches per board per run
 
 [scoring]
 resume_path = "resume"            # directory holding resume.pdf|md|txt (or a file path)
@@ -45,7 +46,6 @@ git_autocommit = true
 auto_submit = false               # NEVER submits unless true
 submit_threshold = 80
 max_submits_per_run = 5
-max_applications_per_run = 5
 browser_profile_path = "config/browser-profile"
 browser_mode = "auto"             # auto | headed | headless
 browser_channel = "auto"          # auto | chrome | chromium | msedge
@@ -54,6 +54,7 @@ cdp_endpoint = ""                 # e.g. http://localhost:9223 to attach to a ru
 tailor_by_default = true
 profile = "config/profile.md"
 cover_letter_style = "config/cover-letter-style.md"
+screenshot_every_step = true
 
 [output]
 report_dir = "reports"

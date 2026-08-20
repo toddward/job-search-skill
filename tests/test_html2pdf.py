@@ -11,7 +11,11 @@ def test_find_browser_returns_path_or_none(monkeypatch):
     b = html2pdf.find_browser("auto")
     assert b is None or shutil.which(b) or __import__("os").path.exists(b)
     monkeypatch.setenv("CHROME_BIN", "/nonexistent/chrome")
-    assert html2pdf.find_browser("auto") in (None, "/nonexistent/chrome") or True
+    # a CHROME_BIN pointing at nothing must be ignored, never handed back as the engine
+    b2 = html2pdf.find_browser("auto")
+    assert b2 != "/nonexistent/chrome"
+    assert b2 is None or shutil.which(b2) or __import__("os").path.exists(b2)
+    assert html2pdf.find_browser("/also/nonexistent/chrome") != "/also/nonexistent/chrome"
 
 @pytest.mark.skipif(html2pdf.find_browser("auto") is None, reason="no Chrome/Chromium on this host")
 def test_render_pdf_with_chrome(tmp_path):

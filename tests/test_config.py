@@ -52,3 +52,25 @@ def test_browser_mode_env_override(home, monkeypatch):
     assert config.load(home)["apply"]["browser_mode"] == "headless"  # env wins over TOML
     monkeypatch.setenv("JOBSEARCH_BROWSER_MODE", "headed")
     assert config.load(home)["apply"]["browser_mode"] == "headed"    # any other value is inert
+
+def test_example_toml_matches_defaults_exactly():
+    """Every shipped key must be one the code actually reads, and every default must be
+    documented in the example — an unconsumed setting is a lie to the user."""
+    import tomllib, common
+    with open(common.SKILL_DIR / "assets" / "settings.example.toml", "rb") as f:
+        example = tomllib.load(f)
+
+    def keys(d, prefix=""):
+        out = set()
+        for k, v in d.items():
+            out.add(prefix + k)
+            if isinstance(v, dict):
+                out |= keys(v, prefix + k + ".")
+        return out
+
+    skip = {"platform_overrides"}
+    ex = {k for k in keys(example) if k.split(".")[0] not in skip}
+    de = {k for k in keys(config.DEFAULTS) if k.split(".")[0] not in skip}
+    assert ex == de, f"only in example: {sorted(ex - de)} | only in DEFAULTS: {sorted(de - ex)}"
+    for gone in ("remote_preference", "include_hybrid", "max_applications_per_run", "pdf_font_family"):
+        assert not any(k.endswith(gone) for k in de | ex), gone

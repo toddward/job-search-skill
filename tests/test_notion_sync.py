@@ -25,3 +25,16 @@ def test_outbox_roundtrip(home):
     ns.outbox_add(home, {"fp": "y", "props": {"Role": "s"}})
     items = ns.outbox_drain(home)
     assert [i["fp"] for i in items] == ["x", "y"] and ns.outbox_drain(home) == []
+
+def test_page_content_falls_back_to_description_path(home):
+    (home / "memory" / "jd").mkdir(parents=True, exist_ok=True)
+    (home / "memory" / "jd" / "abc.html").write_text("<h2>About</h2><p>We serve LLMs with vLLM.</p>" + "<p>x</p>" * 500)
+    job = dict(JOB); job.pop("description_text"); job["description_path"] = "memory/jd/abc.html"
+    assert "vLLM" not in ns.page_content(job)                     # no home -> no disk read
+    body = ns.page_content(job, home)
+    assert "We serve LLMs with vLLM." in body and "<p>" not in body
+    assert len(body.rsplit("## Description (excerpt)\n", 1)[1]) <= 1200
+    missing = dict(job, description_path="memory/jd/nope.html")
+    assert ns.page_content(missing, home).endswith("## Description (excerpt)\n")
+    escape = dict(job, description_path="../../etc/passwd")
+    assert ns.page_content(escape, home).endswith("## Description (excerpt)\n")

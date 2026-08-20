@@ -8,7 +8,7 @@ from pathlib import Path
 SKILL_DIR = Path(__file__).resolve().parents[1]
 DEFAULT_HOME = Path.home() / "job-search"
 POINTER = Path.home() / ".config" / "job-search" / "home"
-DATA_SUBDIRS = ["resume", "config", "memory", "memory/logs", "memory/runs",
+DATA_SUBDIRS = ["resume", "config", "memory", "memory/jd", "memory/logs", "memory/runs",
                 "memory/ats-learned", "reports", "applications"]
 
 def data_home(override: str | None = None) -> Path:

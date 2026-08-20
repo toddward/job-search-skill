@@ -59,7 +59,8 @@ def bootstrap(home: Path, force: bool = False) -> list[str]:
         if _copy_if_absent(ASSETS / src, cfg_dir / dst, force, subs): msgs.append(f"created config/{dst}")
     gi = home / ".gitignore"
     if not gi.exists():
-        gi.write_text("config/browser-profile/\nconfig/settings.local.json\nmemory/.run.lock/\nmemory/.submits-*\n*.lock\napplications/_artifacts/\n"); msgs.append("created .gitignore")
+        gi.write_text("config/browser-profile/\nconfig/settings.local.json\nmemory/.run.lock/\nmemory/.submits-*\n*.lock\n"
+                      "applications/_artifacts/\napplications/*/evidence/\napplications/*/screenshots/\n"); msgs.append("created .gitignore")
     if shutil.which("git") and not (home / ".git").exists():
         subprocess.run(["git", "init", "-q"], cwd=str(home)); msgs.append("git init (data home)")
     if not common.POINTER.exists():

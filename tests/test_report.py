@@ -89,3 +89,31 @@ def test_write_with_string_comp_does_not_raise(home):
     r["ranked"][1].update(comp_min="tbd", comp_max="tbd")
     p = report.write(home, "2026-08-19", run(), r, db=db)
     assert "$215–270k" in p.read_text() and "not listed" in p.read_text()
+
+def common_read_last_run(home):
+    import common
+    return common.read_jsonl(home / "memory" / "runs.jsonl")[-1]
+
+def test_report_dir_comes_from_config(home):
+    (home / "config").mkdir(parents=True, exist_ok=True)
+    (home / "config" / "settings.toml").write_text('[output]\nreport_dir = "out/reports"\n')
+    db = jobs_db.JobsDB(home / "memory" / "jobs.jsonl")
+    p = report.write(home, "2026-08-19", run(), result(), db=db)
+    assert p == home / "out" / "reports" / "2026-08-19.md" and p.exists()
+    rec = common_read_last_run(home)
+    assert rec["report"] == "out/reports/2026-08-19.md" and (home / rec["report"]).exists()
+    assert report.latest_report(home).name == "2026-08-19.md"
+    assert report.latest_report(home, date="2026-08-19") == p
+    p2 = report.write(home, "2026-08-19", run("second-run"), result(), db=db)
+    assert p2 == home / "out" / "reports" / "2026-08-19.r2.md"
+
+
+def test_filename_date_follows_started_at(home):
+    """A run that crosses midnight must not write tomorrow's file under today's heading."""
+    db = jobs_db.JobsDB(home / "memory" / "jobs.jsonl")
+    p = report.write(home, "2026-08-20", run(), result(), db=db)   # started_at is 2026-08-19
+    assert p.name == "2026-08-19.md"
+    assert report.load_index(p)["date"] == "2026-08-19" and "# Job search — 2026-08-19" in p.read_text()
+    r2 = dict(run("no-start"), started_at=None)
+    p2 = report.write(home, "2026-08-19", r2, result(), db=db)
+    assert p2.name == "2026-08-19.r2.md"   # falls back to the explicit date

@@ -50,8 +50,27 @@ def page_properties(job: dict, run_id: str = "") -> dict:
             "Last Shown": _d(job.get("last_shown")), "Applied On": _d(job.get("applied_at")), "Submitted": bool(job.get("submitted")),
             "Why It Fits": "\n".join((job.get("fit_reasons") or [])[:3]), "Notes": job.get("notes", "") or "", "Run ID": run_id}
 
-def page_content(job: dict) -> str:
-    desc = (job.get("description_text") or "")[:1200]
+def _description(job: dict, home: Path | None) -> str:
+    """The stored row keeps the JD body on disk (`description_path`), not in the row, so a
+    mirror built from a jobs.jsonl record would otherwise have an empty excerpt."""
+    text = job.get("description_text") or ""
+    rel = job.get("description_path")
+    if not text and rel and home:
+        home = Path(home).resolve()
+        p = (home / rel).resolve()
+        if p.is_file() and p.is_relative_to(home):   # never read outside the data home
+            try:
+                text = p.read_text(encoding="utf-8", errors="replace")
+            except OSError:
+                return ""
+            if p.suffix.lower() in (".html", ".htm") or text.lstrip().startswith("<"):
+                import jd_extract
+                text = jd_extract.strip_html(text)
+            text = "\n".join(ln.strip() for ln in text.splitlines() if ln.strip())
+    return text[:1200]
+
+def page_content(job: dict, home: Path | None = None) -> str:
+    desc = _description(job, home)
     lines = [f"# {job.get('title')} @ {job.get('company')}", "", f"Posting: {job.get('canonical_url')}", "",
              "## Why it fits", *[f"- {r}" for r in (job.get("fit_reasons") or [])[:5]], ""]
     if job.get("application_dir"):
@@ -87,7 +106,7 @@ def main(argv=None):
     if a.cmd == "outbox": print(json.dumps(common.read_jsonl(home / "memory" / "notion-outbox.jsonl"))); return
     job = jobs_db.JobsDB(home / "memory" / "jobs.jsonl").find(a.fp)
     if not job: sys.exit("unknown fingerprint")
-    print(json.dumps({"properties": page_properties(job, a.run), "content": page_content(job), "icon": status_icon(job.get("status"))}, ensure_ascii=False))
+    print(json.dumps({"properties": page_properties(job, a.run), "content": page_content(job, home), "icon": status_icon(job.get("status"))}, ensure_ascii=False))
 
 if __name__ == "__main__":
     main()

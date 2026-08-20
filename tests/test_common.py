@@ -36,3 +36,9 @@ def test_ensure_dirs(tmp_path):
 
 def test_host_os():
     assert common.host_os() in {"macos", "linux", "other"}
+
+def test_data_subdirs_include_jd_and_runs(tmp_path):
+    import common
+    common.ensure_dirs(tmp_path)
+    for d in ("memory/jd", "memory/runs", "memory/logs", "memory/ats-learned"):
+        assert (tmp_path / d).is_dir(), d

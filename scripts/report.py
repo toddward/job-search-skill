@@ -79,9 +79,32 @@ def load_index(path: Path) -> dict:
 def append_run(home: Path, run: dict) -> None:
     common.append_jsonl(Path(home) / "memory" / "runs.jsonl", run)
 
-def write(home: Path, date: str, run: dict, result: dict, learned=(), decisions=(), db=None) -> Path:
+def report_dir(home: Path) -> Path:
+    """`output.report_dir` from config (relative paths live under the data home)."""
+    import config
+    try:
+        raw = str((config.load(home).get("output") or {}).get("report_dir") or "reports")
+    except Exception:
+        raw = "reports"
+    p = Path(raw).expanduser()
+    return p if p.is_absolute() else Path(home) / p
+
+def _rel(home: Path, path: Path) -> str:
+    """Path as recorded in runs.jsonl: relative to the home when it lives there (so a moved
+    data home keeps working), absolute otherwise. `home / rel` round-trips both forms."""
+    try:
+        return path.relative_to(home).as_posix()
+    except ValueError:
+        return str(path)
+
+def write(home: Path, date: str | None = None, run: dict | None = None, result: dict | None = None,
+          learned=(), decisions=(), db=None) -> Path:
     home = Path(home)
-    rdir = home / "reports"; rdir.mkdir(parents=True, exist_ok=True)
+    run, result = run or {}, result or {}
+    # The filename must agree with the title and the index, which both derive from started_at —
+    # otherwise a run that crosses midnight writes tomorrow's file with today's heading.
+    date = (run.get("started_at") or "")[:10] or date or common.utcnow()[:10]
+    rdir = report_dir(home); rdir.mkdir(parents=True, exist_ok=True)
     # Map every report path ever recorded in runs.jsonl to the run_id that claimed it,
     # so a deleted-but-recorded file's slot is never silently handed to a different run.
     recorded = {}
@@ -91,8 +114,8 @@ def write(home: Path, date: str, run: dict, result: dict, learned=(), decisions=
             recorded[rp] = r.get("run_id")
     n = 1
     while True:
-        rel = f"reports/{date}.md" if n == 1 else f"reports/{date}.r{n}.md"
-        path = home / rel
+        path = rdir / (f"{date}.md" if n == 1 else f"{date}.r{n}.md")
+        rel = _rel(home, path)
         owner = recorded.get(rel)
         if owner is not None:
             if owner == run.get("run_id"):
@@ -113,7 +136,7 @@ def write(home: Path, date: str, run: dict, result: dict, learned=(), decisions=
     if db is not None:
         db.mark_shown([j["fingerprint"] for j in result.get("ranked", [])], now=common.utcnow())
         db.save()
-    run = dict(run, report=str(path.relative_to(home)), counts=result.get("counts", {}), ended_at=common.utcnow())
+    run = dict(run, report=_rel(home, path), counts=result.get("counts", {}), ended_at=common.utcnow())
     append_run(home, run)
     return path
 
@@ -128,7 +151,7 @@ def latest_report(home: Path, date: str | None = None, run_id: str | None = None
     if date:
         pat = re.compile(rf"^{re.escape(date)}(?:\.r(\d+))?\.md$")
         cands = []
-        for p in (home / "reports").glob(f"{date}*.md"):
+        for p in report_dir(home).glob(f"{date}*.md"):
             m = pat.match(p.name)
             if m:
                 cands.append((int(m.group(1)) if m.group(1) else 1, p))

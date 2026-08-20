@@ -54,3 +54,11 @@ def test_headless_settings_allowlist_is_narrow():
                  "Bash(firecrawl *)", "Bash(pdftotext *)", "Bash(git -C {{HOME}} *)"):
         assert kept in allow, kept
     assert "AskUserQuestion" in s["permissions"]["deny"]
+
+def test_bootstrap_gitignores_application_evidence(home):
+    import doctor
+    doctor.bootstrap(home)
+    gi = (home / ".gitignore").read_text()
+    for pat in ("config/settings.local.json", "config/browser-profile/", "memory/.submits-*",
+                "applications/*/evidence/", "applications/*/screenshots/"):
+        assert pat in gi, pat
