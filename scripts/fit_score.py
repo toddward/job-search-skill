@@ -32,6 +32,11 @@ for _g in SYN_GROUPS:
 def variants(term: str) -> set[str]:
     return _SYN.get(canon(term), {canon(term)})
 
+def known_term(s: str) -> bool:
+    """True when `s` (any casing/spelling variant) names a skill in SYN_GROUPS.
+    Used by jd_extract.terms_from_bullets to harvest terms out of bullet sentences."""
+    return canon(s) in _SYN
+
 def resume_terms(master_md: str) -> set[str]:
     words, grams = canon(master_md).split(), set()
     for n in (1, 2, 3):
@@ -68,8 +73,10 @@ def _ratio_seniority(job_title: str, resume_level: str) -> float:
 def score(master_md: str, job: dict, cfg: dict, age_days: float | None) -> dict:
     w = dict(cfg.get("weights") or {})
     grams = resume_terms(master_md)
-    must = [m for m in (job.get("must_have") or []) if m]
-    nice = [n for n in (job.get("nice_to_have") or []) if n]
+    # covered() matches TERMS, not sentences: prefer the term lists jd_extract harvests from
+    # the bullets, and fall back to the raw bullet prose only when no term list is present.
+    must = [m for m in (job.get("must_have_terms") or job.get("must_have") or []) if m]
+    nice = [n for n in (job.get("nice_to_have_terms") or job.get("nice_to_have") or []) if n]
     must_cov = sum(covered(m, grams) for m in must) / len(must) if must else 0.75
     nice_cov = sum(covered(n, grams) for n in nice) / len(nice) if nice else 0.5
     missing = [m for m in must if covered(m, grams) == 0.0]
@@ -114,13 +121,30 @@ def score(master_md: str, job: dict, cfg: dict, age_days: float | None) -> dict:
     return {"total": int(round(total)), "components": comps, "caps": caps, "notes": notes,
             "must_have_coverage": round(must_cov, 4), "missing_must_haves": missing, "rubric_version": RUBRIC_VERSION}
 
+ROW_FIELDS = ("location_key", "remote")
+
+def merge_row(job: dict, row: dict | None) -> dict:
+    """Merge the few fields only the jobs_db row knows (normalized location, work model) into
+    the jd_extract job dict. Nothing else is copied: the extract output owns must/nice terms
+    and the red-flag facts that drive the caps."""
+    out = dict(job)
+    for k in ROW_FIELDS:
+        v = (row or {}).get(k)
+        if v not in (None, ""):
+            out[k] = v
+    return out
+
 def main(argv=None):
     import argparse, pathlib
     ap = argparse.ArgumentParser(description="fit score")
     ap.add_argument("--master", required=True); ap.add_argument("--job", required=True)
     ap.add_argument("--config-json", required=True); ap.add_argument("--age-days", type=float)
+    ap.add_argument("--row", help="jobs_db record JSON file; merges location_key/remote into the job")
     a = ap.parse_args(argv)
-    print(json.dumps(score(pathlib.Path(a.master).read_text(), json.loads(pathlib.Path(a.job).read_text()),
+    job = json.loads(pathlib.Path(a.job).read_text())
+    if a.row:
+        job = merge_row(job, json.loads(pathlib.Path(a.row).read_text()))
+    print(json.dumps(score(pathlib.Path(a.master).read_text(), job,
                            json.loads(pathlib.Path(a.config_json).read_text()), a.age_days)))
 
 if __name__ == "__main__":

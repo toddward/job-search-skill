@@ -93,6 +93,68 @@ def sectioned_bullets(text: str):
                 (must if cur == "must" else nice).append(item)
     return must, nice
 
+TOKEN_RE = re.compile(r"\.?[A-Za-z][A-Za-z0-9+#./&-]*")
+STOPWORDS = {
+    "a", "an", "and", "or", "the", "to", "of", "in", "on", "with", "for", "at", "by", "from", "as", "is", "are",
+    "be", "been", "have", "has", "had", "you", "your", "we", "our", "us", "u s", "usa", "will", "can", "could",
+    "must", "should", "who", "what", "that", "this", "it", "its", "their", "they", "not", "no", "yes", "e g",
+    "i e", "etc", "years", "year", "year s", "experience", "ability", "able", "strong", "plus", "preferred",
+    "required", "requirements", "nice", "team", "teams", "work", "working", "role", "job", "candidate",
+    "candidates", "bachelor", "master", "degree", "equivalent", "excellent", "proven", "demonstrated",
+}
+
+def _is_tech_token(tok: str, pos: int, ntokens: int) -> bool:
+    """Heuristic: does this token look like a technology/skill name rather than English prose?"""
+    core = tok.strip("./-")
+    if len(core) < 2:
+        return False
+    if any(ch.isdigit() or ch in "+#." for ch in core):   # K8s, C++, .NET, S3, GPT-4
+        return True
+    if core.isupper():                                    # AWS, GCP, SQL, TS/SCI
+        return True
+    if any(ch.isupper() for ch in core[1:]):              # vLLM, PyTorch, OpenShift
+        return True
+    # A leading capital only means something away from the start of a sentence; in a bullet that
+    # is just a short noun phrase ("Go", "Rust", "Apache Kafka") the first word is informative too.
+    return core[0].isupper() and (pos > 0 or ntokens <= 3)
+
+def terms_from_bullets(bullets: list[str]) -> list[str]:
+    """Harvest skill TERMS out of bullet SENTENCES so `fit_score.covered()` — which matches terms,
+    not prose — sees something it can score. Two harvesters: known synonym-group n-grams (1-3
+    words, longest match wins) and tokens that look like technology names. Order preserved,
+    deduped on the canonical form, English filler dropped."""
+    import fit_score  # lazy on purpose: fit_score must never import jd_extract (cycle)
+    out: list[str] = []
+    seen: set[str] = set()
+    for bullet in bullets or []:
+        toks = TOKEN_RE.findall(bullet or "")
+        i = 0
+        while i < len(toks):
+            hit = None
+            for n in (3, 2, 1):
+                if i + n > len(toks):
+                    continue
+                gram = " ".join(t.strip("./-") for t in toks[i:i + n])
+                if fit_score.known_term(gram):
+                    # a bare lowercase "go"/"ai"/"ts" in prose is a word, not a skill mention
+                    if n == 1 and gram.islower() and len(gram) <= 3:
+                        break
+                    hit = (gram, n)
+                    break
+            if hit is None and _is_tech_token(toks[i], i, len(toks)):
+                hit = (toks[i].strip("./-"), 1)
+            if hit is None:
+                i += 1
+                continue
+            term, n = hit
+            canonical = fit_score.canon(term)
+            key = " ".join(sorted(fit_score.variants(term)))  # one entry per synonym group
+            if canonical and canonical not in STOPWORDS and key not in seen:
+                seen.add(key)
+                out.append(term)
+            i += n
+    return out
+
 def find_injections(text: str) -> list[str]:
     """Extract injection suspects (phrases and canary tokens) from text."""
     matches = sorted({m.group(0) for m in INJECT.finditer(text)})
@@ -146,7 +208,8 @@ def _base(title="", company="", location="", desc_html="", url="", layer="headin
     must, nice = sectioned_bullets(text)
     f = facts(text)
     out = {"title": title.strip(), "company": company.strip(), "location": location.strip(), "remote": kw.get("remote") or _remote_kind(text, kw.get("remote_hint", "")),
-           "description_text": text.strip(), "must_have": must, "nice_to_have": nice, **f,
+           "description_text": text.strip(), "must_have": must, "nice_to_have": nice,
+           "must_have_terms": terms_from_bullets(must), "nice_to_have_terms": terms_from_bullets(nice), **f,
            "posted_at": kw.get("posted_at"), "closes_at": kw.get("closes_at"), "apply_url": kw.get("apply_url") or url,
            "source_layer": layer, "low_confidence": not must, "domain_tags": domain_tags(title + " " + text),
            "content_hash": hashlib.sha256(text.strip().encode()).hexdigest()[:16],

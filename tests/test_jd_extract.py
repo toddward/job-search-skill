@@ -46,3 +46,24 @@ def test_money_rules():
 def test_short_bullets_floor():
     must, nice = jx.sectioned_bullets("## Requirements\n- Go\n- .\n- 5\n- C++\n")
     assert must == ["Go", "C++"]
+
+def test_terms_from_bullets_harvests_terms_not_sentences():
+    must, _ = jx.sectioned_bullets("## Requirements\n- Have 8+ years designing ML platforms on Kubernetes\n"
+                                   "- Know LLM inference serving (vLLM)\n- Write Python and Terraform\n")
+    terms = jx.terms_from_bullets(must)
+    assert terms == ["ML", "Kubernetes", "LLM inference", "vLLM", "Python", "Terraform"]
+    # English prose and sentence-initial words are not skills; a one-word bullet is
+    assert jx.terms_from_bullets(["Have strong experience and a Bachelor's degree"]) == []
+    assert jx.terms_from_bullets(["Go", "Rust", "C++", "K8s", ".NET"]) == ["Go", "Rust", "C++", "K8s", "NET"]
+    # order preserved, deduped on the canonical form
+    assert jx.terms_from_bullets(["Kubernetes and K8s and kubernetes", "Python"]) == ["Kubernetes", "Python"]
+
+def test_extract_emits_term_lists_alongside_prose(fixtures):
+    j = jx.extract((fixtures / "jd_greenhouse.json").read_text())
+    assert "Have 8+ years designing ML platforms on Kubernetes" in j["must_have"]
+    lowered = [t.lower() for t in j["must_have_terms"]]
+    for t in ("kubernetes", "vllm", "python", "terraform"):
+        assert t in lowered, t
+    assert [t.lower() for t in j["nice_to_have_terms"]] == ["go", "openshift"]
+    a = jx.extract((fixtures / "jd_ashby.json").read_text())
+    assert a["must_have_terms"] == ["Python", "TS/SCI"] and a["nice_to_have_terms"] == ["Rust"]
